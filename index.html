@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="stylesheet" href="css/style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="It$umrou">
+<link rel="apple-touch-icon" href="png/pwa-icon-180.png">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#111111">
+<title>ItOumrou</title>
+
+
+</head>
+
+<body>
+
+<div class="app">
+
+<header class="header">
+
+    <div class="app-header">
+    <div class="app-logo">
+        <img src="png/ItOumrou-Icon.png" alt="ItOumrou">
+    </div>
+
+    <h1 class="app-name">It$umrou</h1>
+</div>
+
+</header>
+
+
+<!-- ================= HOME ================= -->
+
+<div id="homePage" class="page active">
+
+<section class="card home-month-selector">
+
+    <h2>Month</h2>
+
+    <select id="monthSelect" class="month-select">
+        <option value="2026-01">January 2026</option>
+        <option value="2026-02">February 2026</option>
+        <option value="2026-03">March 2026</option>
+        <option value="2026-04">April 2026</option>
+        <option value="2026-05">May 2026</option>
+        <option value="2026-06">June 2026</option>
+        <option value="2026-07">July 2026</option>
+        <option value="2026-08">August 2026</option>
+        <option value="2026-09" selected>September 2026</option>
+        <option value="2026-10">October 2026</option>
+        <option value="2026-11">November 2026</option>
+        <option value="2026-12">December 2026</option>
+    </select>
+
+</section>
+
+<section class="card dashboard-status-card home-overview">
+
+    <div class="dashboard-status-heading">
+        <div>
+            <h2>At a glance</h2>
+            <div class="label" id="dashboardDaysLeft">Your month in one clear view</div>
+        </div>
+    </div>
+
+    <div class="dashboard-hero">
+        <div class="dashboard-hero-label">Safe to spend today</div>
+        <div id="dashboardSafeToSpend" class="dashboard-hero-amount">0 MRU</div>
+        <div id="dashboardSafeToSpendHint" class="dashboard-hero-hint">Add your income to see a daily guide.</div>
+    </div>
+
+    <div id="dashboardStatus" class="dashboard-status neutral" role="status">
+        Add your income to see your monthly status.
+    </div>
+
+    <div class="dashboard-group">
+        <div class="dashboard-group-title">Money</div>
+        <div class="dashboard-quick-stats">
+            <div>
+                <div class="label">Income</div>
+                <strong id="dashboardIncome">0 MRU</strong>
+            </div>
+            <div>
+                <div class="label">Budget</div>
+                <strong id="dashboardBudget">0 MRU</strong>
+            </div>
+            <div>
+                <div class="label">Spent</div>
+                <strong id="dashboardSpent">0 MRU</strong>
+            </div>
+            <div>
+                <div class="label" title="Income minus what you've assigned to M/S/T/C/P/$ this month">Unallocated <span class="hint-icon">ⓘ</span></div>
+                <strong id="dashboardBalance">0 MRU</strong>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-group">
+        <div class="dashboard-group-title">Banks &amp; bills</div>
+        <div class="dashboard-quick-stats">
+            <div>
+                <div class="label" title="Real total across all your bank accounts right now">Across banks <span class="hint-icon">ⓘ</span></div>
+                <strong id="dashboardTotalBalance">0 MRU</strong>
+            </div>
+            <div>
+                <div class="label">Bills unpaid</div>
+                <strong id="dashboardBills">0 MRU</strong>
+                <div id="dashboardBillsStatus" class="label">0 paid · 0 unpaid</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="nextBillNotice" class="next-bill-notice" hidden></div>
+
+    <div id="budgetWarning" class="budget-warning" role="alert" hidden></div>
+
+</section>
+
+<section class="card insights-card home-insights" aria-labelledby="insightsTitle">
+    <div class="section-heading">
+        <div>
+            <h2 id="insightsTitle">Insights &amp; coaching</h2>
+            <div class="label">Small, practical nudges from your recorded spending.</div>
+        </div>
+        <span aria-hidden="true" class="insight-icon">
+            <svg viewBox="0 0 24 24" fill="none" width="20" height="20"><path d="M12 3L13.8 9.2L20 11L13.8 12.8L12 19L10.2 12.8L4 11L10.2 9.2L12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </span>
+    </div>
+    <div id="insightsContent" class="insights-content" role="status" aria-live="polite"></div>
+</section>
+
+<section id="backupReminder" class="card reminder-card home-backup" hidden role="status">
+    <div class="reminder-heading"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="20" height="20"><path d="M12 4V14M12 14L8.5 10.5M12 14L15.5 10.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 16V18.5A1.5 1.5 0 0 0 6.5 20H17.5A1.5 1.5 0 0 0 19 18.5V16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><strong>Time to back up your data</strong></div>
+    <div class="label">Keep a copy somewhere safe in case this phone is lost or browser data is cleared.</div>
+    <div class="reminder-actions">
+        <button id="homeBackupButton" class="primary-button" type="button" onclick="exportAppData()">Download backup</button>
+        <button id="snoozeBackupButton" class="secondary-button" type="button">Remind me next week</button>
+    </div>
+</section>
+
+<section id="balanceCheckReminder" class="card reminder-card home-balance-check" hidden role="status">
+    <div class="reminder-heading"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="20" height="20"><path d="M12 4V20M6 7H18M6 7L3.5 12.5A2.5 2.5 0 0 0 8.5 12.5L6 7ZM18 7L15.5 12.5A2.5 2.5 0 0 0 20.5 12.5L18 7Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg></span><strong>Confirm this month's bank balances</strong></div>
+    <div class="label">Check that each bank's real balance matches the app, so any missed spending gets recorded.</div>
+    <div class="reminder-actions">
+        <button class="primary-button" type="button" onclick="showPage('banksPage')">Check balances</button>
+    </div>
+</section>
+
+<section class="card bills-home-card home-bills">
+    <div class="section-heading">
+        <div>
+            <h2>Upcoming bills</h2>
+            <div class="label">Stay ahead of due dates and payment reminders.</div>
+        </div>
+    </div>
+    <button type="button" class="assignments-entry-card" onclick="showPage('settingsBillsPage')">
+        <span class="savings-entry-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M6 3H18V21L15.5 19L13 21L10.5 19L8 21L5.5 19L6 21V3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.5 8H15.5M8.5 11.5H15.5M8.5 15H13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+        <span class="savings-entry-text">
+            <span class="savings-entry-title">View upcoming bills</span>
+            <span id="homeBillsSummary" class="savings-entry-sub">No bills yet</span>
+        </span>
+        <span class="settings-menu-chevron" aria-hidden="true">›</span>
+    </button>
+</section>
+
+
+
+<section class="card home-income">
+
+    <h2 id="incomeSetupTitle">BM.S — Main Income</h2>
+
+    <div class="label">This month's income</div>
+
+    <div id="incomeDisplay" class="income-amount">
+        0 MRU
+    </div>
+
+    <div id="incomeSetupFields">
+    <label class="label" for="incomeInput">
+        BM.S amount
+    </label>
+
+    <input
+        id="incomeInput"
+        type="number"
+        min="0"
+        step="1"
+        placeholder="Enter BM.S"
+    >
+    </div>
+
+    <div class="label" style="margin-top:14px;">
+        Main Bank for this month
+    </div>
+
+    <div id="mainBankDisplay" class="main-bank">
+        Not selected
+    </div>
+
+    <div id="bankSelectionSection">
+        <div class="label" style="margin-top:14px;">
+            Select the main bank for this month
+        </div>
+
+        <div class="bank-grid">
+            <button class="bank-button" data-bank="Bankily" type="button">
+                <img class="bank-logo" src="png/Bankily.png" alt="">
+                <div class="bank-text">Bankily</div>
+            </button>
+
+            <button class="bank-button" data-bank="Click" type="button">
+                <img class="bank-logo" src="png/Click.png" alt="">
+                <div class="bank-text">Click</div>
+            </button>
+
+            <button class="bank-button" data-bank="Sedad" type="button">
+                <img class="bank-logo" src="png/Sedad.png" alt="">
+                <div class="bank-text">Sedad</div>
+            </button>
+
+            <button class="bank-button" data-bank="Masrvi" type="button">
+                <img class="bank-logo" src="png/Masrvi.png" alt="">
+                <div>
+                    <div class="bank-text">Masrvi</div>
+                    <div class="saving-label">SAVINGS BANK</div>
+                </div>
+            </button>
+        </div>
+    </div>
+
+    <div id="incomeStatus" class="label" style="margin-top:10px;">
+        BM.S has not been confirmed.
+    </div>
+    <div id="assignmentReminder" class="transfer-needed" role="status" hidden>
+        BM.S received. Review and send your monthly assignments below:
+        M, S, T, C, P, and savings.
+    </div>
+
+    <div id="incomeSetupContent">
+    <button
+        id="confirmIncomeButton"
+        class="primary-button"
+    >
+        Confirm BM.S Received
+    </button>
+    </div>
+
+</section>
+
+
+<section class="card home-assignments">
+    <h2>Monthly Assignments</h2>
+    <div id="assignmentsSummary" class="assignments-summary"></div>
+    <button type="button" class="assignments-entry-card" onclick="showPage('assignmentsPage')">
+        <span class="savings-entry-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9L10.5 7H19.5A1.5 1.5 0 0 1 21 8.5V17.5A1.5 1.5 0 0 1 19.5 19H4.5A1.5 1.5 0 0 1 3 17.5V6.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span>
+        <span class="savings-entry-text">
+            <span class="savings-entry-title">View assignments</span>
+            <span class="savings-entry-sub">M, S, T, C, P, and savings — fund and track each one</span>
+        </span>
+        <span class="settings-menu-chevron" aria-hidden="true">›</span>
+    </button>
+</section>
+
+
+<section class="card home-actions">
+    <h2>Quick actions</h2>
+    <button id="dailySpendingButton" class="primary-button">
+        Daily Spending
+    </button>
+    <button id="saveButton" class="secondary-button">
+        Save This Month
+    </button>
+</section>
+
+</div>
+
+
+<!-- ================= MANAGE BANKS ================= -->
+
+<div id="banksPage" class="page">
+
+    <button class="back-button" onclick="showPage('homePage')">
+        ← Home
+    </button>
+
+    <section class="card banks-total-card" style="margin-top:16px;">
+        <div class="banks-total-label">Total across all banks</div>
+        <div id="banksTotalBalance" class="banks-total-value">0 MRU</div>
+    </section>
+
+    <button type="button" class="savings-entry-card" onclick="showPage('savingsPage')">
+        <span class="savings-entry-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M4 12.5C4 9 7.5 6.5 12 6.5C15 6.5 17.2 7.6 18.4 9H20.5L19 11.2C19.4 11.9 19.6 12.7 19.6 13.5C19.6 16.5 16.2 18.5 12 18.5C7.5 18.5 4 16 4 12.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="9" cy="12" r="0.9" fill="currentColor"/><path d="M9 6.5V4.5M6.5 7.5L5.2 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+        <span class="savings-entry-text">
+            <span class="savings-entry-title">Savings</span>
+            <span class="savings-entry-sub">Track your $ savings, fund it, and see projections</span>
+        </span>
+        <span class="settings-menu-chevron" aria-hidden="true">›</span>
+    </button>
+
+    <section class="card">
+
+        <h2>Manage Banks</h2>
+
+        <div id="manageBanksList"></div>
+
+    </section>
+
+    <section class="card balance-check-card">
+        <h2>Monthly balance check</h2>
+        <div class="label">
+            Compare each bank's real-life balance to what the app shows. Any difference is
+            automatically recorded as an income or expense so the app always matches reality.
+        </div>
+        <div id="balanceCheckStatus" class="balance-check-status"></div>
+        <div id="balanceCheckList" class="balance-check-list"></div>
+        <button id="saveBalanceCheckButton" class="primary-button" type="button">
+            Save actual balances
+        </button>
+    </section>
+
+    <section class="card">
+        <h2>Bank-to-bank transfer</h2>
+        <div class="label">
+            Move money between your accounts. Assignments remain tracked separately.
+        </div>
+
+        <form id="bankTransferForm" class="bank-transfer-form">
+            <div class="bank-transfer-row">
+                <div class="bank-transfer-field">
+                    <label class="label" for="transferFrom">From bank</label>
+                    <select id="transferFrom" required>
+                        <option value="">Choose a source bank</option>
+                        <option value="Bankily">Bankily</option>
+                        <option value="Click">Click</option>
+                        <option value="Sedad">Sedad</option>
+                        <option value="Masrvi">Masrvi</option>
+                    </select>
+                </div>
+
+                <button type="button" id="swapTransferBanksButton" class="transfer-swap-button"
+                    aria-label="Swap from and to banks" title="Swap">⇄</button>
+
+                <div class="bank-transfer-field">
+                    <label class="label" for="transferTo">To bank</label>
+                    <select id="transferTo" required>
+                        <option value="">Choose a destination bank</option>
+                        <option value="Bankily">Bankily</option>
+                        <option value="Click">Click</option>
+                        <option value="Sedad">Sedad</option>
+                        <option value="Masrvi">Masrvi</option>
+                    </select>
+                </div>
+            </div>
+
+            <label class="label" for="transferAmount">Amount</label>
+            <input id="transferAmount" type="number" min="1" max="1000000000"
+                step="1" inputmode="numeric" placeholder="Whole amount" required>
+
+            <label class="label" for="transferDescription">Description</label>
+            <input id="transferDescription" type="text" maxlength="120"
+                placeholder="Optional note (for example: move to savings)">
+
+            <button id="bankTransferButton" class="primary-button" type="submit">
+                Record transfer
+            </button>
+        </form>
+    </section>
+
+    <section class="card">
+        <h2>Bank transfer history</h2>
+        <div id="bankTransferHistory" class="calendar-activity-list"></div>
+    </section>
+
+</div>
+
+
+<!-- ================= BANK DETAILS ================= -->
+
+<div id="bankDetailsPage" class="page">
+
+    <button class="back-button" onclick="showPage('banksPage')">
+        ← Banks
+    </button>
+
+    <section class="card" style="margin-top:16px;">
+
+        <div id="bankDetails"></div>
+
+    </section>
+
+</div>
+
+
+<!-- ================= SAVINGS ================= -->
+
+<div id="savingsPage" class="page">
+
+    <button class="back-button" onclick="showPage('banksPage')">
+        ← Banks
+    </button>
+
+    <section class="card savings-hero-card" style="margin-top:16px;">
+        <div class="label">Saved so far ($ · Masrvi)</div>
+        <div id="savingsBalance" class="income-amount">0 MRU</div>
+        <div id="savingsMonthlyPlan" class="label"></div>
+    </section>
+
+    <section class="card">
+        <h2>Fund this month's savings</h2>
+        <div class="label" id="savingsFundHint">
+            Send this month's $ assignment from your main bank to Masrvi.
+        </div>
+        <button id="savingsFundButton" type="button" class="primary-button">
+            Fund savings
+        </button>
+    </section>
+
+    <section class="card">
+        <h2>Savings goal</h2>
+        <div class="label" id="savingsGoalHint">Set a target amount to track your progress and see when you'll reach it.</div>
+        <div id="savingsGoalProgressWrap" hidden>
+            <div class="assignment-progress"><span id="savingsGoalProgressBar"></span></div>
+            <div id="savingsGoalProgressLabel" class="label" style="margin-top:6px;"></div>
+        </div>
+        <div class="bill-form" style="margin-top:12px;">
+            <label class="label" for="savingsGoalInput">Target amount (MRU)</label>
+            <input id="savingsGoalInput" type="number" min="0" max="1000000000" step="1" inputmode="numeric" placeholder="e.g. 100000">
+            <div class="settings-actions">
+                <button id="saveSavingsGoalButton" class="primary-button" type="button">Save goal</button>
+                <button id="clearSavingsGoalButton" class="secondary-button" type="button">Clear goal</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Projections</h2>
+        <div class="label">If you keep saving at your current monthly pace:</div>
+        <div class="summary-grid" style="margin-top:12px;">
+            <div class="summary-box">
+                <div class="label">In 6 months</div>
+                <div id="savingsProjection6" class="summary-value">0 MRU</div>
+            </div>
+            <div class="summary-box">
+                <div class="label">In 1 year</div>
+                <div id="savingsProjection12" class="summary-value">0 MRU</div>
+            </div>
+            <div class="summary-box">
+                <div class="label">In 5 years</div>
+                <div id="savingsProjection60" class="summary-value">0 MRU</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Savings history</h2>
+        <div id="savingsHistoryList" class="calendar-activity-list"></div>
+    </section>
+
+</div>
+
+
+<!-- ================= MONTHLY ASSIGNMENTS ================= -->
+
+<div id="assignmentsPage" class="page">
+
+    <button class="back-button" onclick="showPage('homePage')">
+        ← Home
+    </button>
+
+    <section class="card" style="margin-top:16px;">
+        <h2>Monthly Assignments</h2>
+        <div id="assignmentsPageSummary" class="assignments-summary"></div>
+        <div id="assignmentsPageReminder" class="transfer-needed" role="status" hidden>
+            BM.S received. Review and send your monthly assignments below:
+            M, S, T, C, P, and savings.
+        </div>
+        <div id="assignments"></div>
+    </section>
+
+</div>
+
+
+<!-- ================= DAILY SPENDING ================= -->
+
+<div id="spendingPage" class="page">
+
+    <button class="back-button" onclick="showPage('homePage')">
+        ← Home
+    </button>
+
+    <section class="card spending-summary-card" style="margin-top:16px;">
+
+        <h2>Today's Spending</h2>
+
+        <div class="spending-summary-row">
+            <div class="spending-summary-block">
+                <div class="label">Saved today</div>
+                <div id="todayConfirmedTotal" class="income-amount">0 MRU</div>
+            </div>
+
+            <div
+                id="todayPendingBox"
+                class="spending-summary-block spending-pending-block"
+                style="display:none;"
+            >
+                <div class="label">Not saved yet</div>
+                <div id="todayPendingTotal" class="spending-total-number">0 MRU</div>
+            </div>
+        </div>
+
+        <div id="todayCategorySummary" class="today-category-summary"></div>
+
+    </section>
+
+    <section class="card" style="margin-top:16px;">
+
+        <h2>Add Expense</h2>
+
+        <div class="label">
+            Add everything you spent today, then tap Save.
+            You can add several expenses before saving.
+        </div>
+
+        <div id="quickAddExpenses" class="quick-add-row"></div>
+
+        <div id="expenseList"></div>
+
+        <button
+            id="addExpenseButton"
+            class="secondary-button"
+        >
+            + Add Expense
+        </button>
+
+        <button
+            id="finishSpendingButton"
+            class="primary-button"
+        >
+            Save
+        </button>
+
+    </section>
+
+</div>
+
+<!-- ================= CALENDAR ================= -->
+
+
+
+<div id="calendarPage" class="page">
+
+    <button class="back-button" onclick="showPage('homePage')">
+        ← Home
+    </button>
+
+    <section class="card calendar-summary-card" style="margin-top:16px;">
+
+        <div class="calendar-heading">
+            <div>
+                <h2>Monthly activity</h2>
+                <div id="calendarMonthLabel" class="label">
+                    Selected month
+                </div>
+            </div>
+
+            <div class="calendar-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="26" height="26"><rect x="3.5" y="5" width="17" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M7 3.5V7M17 3.5V7M3.5 9H20.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7 13H9M12 13H14M17 13H19M7 17H9M12 17H14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+        </div>
+
+        <div class="calendar-totals">
+            <button class="calendar-total calendar-total-button" type="button" onclick="showCalendarDetailsPage('income')">
+                <div class="label">Income</div>
+                <div id="calendarIncomeTotal" class="calendar-total-value">0 MRU</div>
+            </button>
+
+            <button class="calendar-total calendar-total-button" type="button" onclick="showCalendarDetailsPage('spent')">
+                <div class="label">Spent</div>
+                <div id="calendarSpentTotal" class="calendar-total-value">0 MRU</div>
+            </button>
+        </div>
+
+        <div class="calendar-transfer-summary">
+            <span>Internal transfers</span>
+            <strong id="calendarTransferTotal">0 MRU</strong>
+        </div>
+
+    </section>
+
+    <section class="card calendar-grid-card">
+        <div class="calendar-grid-header">
+            <h2>Calendar</h2>
+            <div class="label">Tap a day to see what happened.</div>
+        </div>
+        <div class="calendar-grid-weekdays">
+            <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+        </div>
+        <div id="calendarGrid" class="calendar-grid"></div>
+        <div class="calendar-grid-legend">
+            <span><i class="calendar-dot calendar-dot-income"></i> Income</span>
+            <span><i class="calendar-dot calendar-dot-expense"></i> Spending</span>
+            <span><i class="calendar-dot calendar-dot-transfer"></i> Transfer</span>
+        </div>
+        <div id="calendarDayDetail" class="calendar-day-detail" hidden></div>
+    </section>
+
+    <section class="card">
+        <div class="calendar-view-switch" role="tablist" aria-label="Monthly activity views">
+            <button
+                id="calendarActivityTab"
+                class="calendar-view-tab active"
+                type="button"
+                onclick="showCalendarView('activity')"
+                role="tab"
+                aria-selected="true"
+            >
+                Activity
+            </button>
+
+            <button
+                id="calendarAssignmentsTab"
+                class="calendar-view-tab"
+                type="button"
+                onclick="showCalendarView('assignments')"
+                role="tab"
+                aria-selected="false"
+            >
+                Assignments
+            </button>
+        </div>
+
+        <div id="calendarActivity" class="calendar-activity-list"></div>
+        <div id="calendarAssignments" class="calendar-assignments-list" hidden></div>
+        <div id="calendarDetails" class="calendar-details" hidden></div>
+    </section>
+
+    <section class="card">
+        <h2>Transaction history</h2>
+        <div class="history-filters">
+            <input id="historySearch" type="search" placeholder="Search transactions">
+            <select id="historyType">
+                <option value="all">All types</option>
+                <option value="income">Income</option>
+                <option value="expense">Expenses</option>
+                <option value="internal_transfer">Transfers</option>
+            </select>
+            <select id="historyCategory">
+                <option value="all">All categories</option>
+                <option value="M">M — Mom</option>
+                <option value="S">S — Charity</option>
+                <option value="$">$ — Savings</option>
+                <option value="T">T — Taxi</option>
+                <option value="C">C — Cigar</option>
+                <option value="P">P — Personal needs</option>
+                <option value="OTHER">Other</option>
+            </select>
+            <label class="history-scope-toggle">
+                <input id="historyAllMonths" type="checkbox">
+                All months
+            </label>
+        </div>
+        <div id="transactionHistory" class="calendar-activity-list"></div>
+    </section>
+
+    <section class="card monthly-workflow-card" aria-labelledby="monthlyWorkflowTitle">
+        <div class="section-heading">
+            <div>
+                <h2 id="monthlyWorkflowTitle">Monthly close</h2>
+                <div id="monthlyWorkflowStatus" class="label" role="status">This month is open.</div>
+            </div>
+            <span id="monthlyWorkflowBadge" class="workflow-badge open">Open</span>
+        </div>
+        <p class="label">Past months close automatically once the real month ends. Use "Close month" only if you want to lock the current month early before it ends.</p>
+        <div class="workflow-actions">
+            <button id="closeMonthButton" class="primary-button" type="button">Close month</button>
+            <button id="reopenMonthButton" class="secondary-button" type="button" hidden>Reopen month</button>
+            <button id="monthHistoryButton" class="text-button" type="button">View close history</button>
+        </div>
+        <div id="monthCloseHistory" class="month-close-history" hidden></div>
+    </section>
+
+    <details class="card dashboard-details">
+        <summary>Charts and detailed views</summary>
+        <div class="chart-wrap">
+            <canvas id="cashFlowChart" class="chart-canvas" height="190"
+                aria-label="Income and spending chart"></canvas>
+            <canvas id="assignmentChart" class="chart-canvas" height="190"
+                aria-label="Assignment planned versus spent chart"></canvas>
+            <canvas id="trendChart" class="chart-canvas" height="190"
+                aria-label="Spending trend versus last month by category"></canvas>
+        </div>
+    </details>
+
+    <section class="card report-card">
+        <h2 data-i18n="Monthly reports">Monthly reports</h2>
+        <div class="label" data-i18n="Download a snapshot of the selected month or print it to PDF.">
+            Download a snapshot of the selected month or print it to PDF.
+        </div>
+        <div class="report-actions">
+            <button id="exportCsvButton" class="secondary-button" type="button" data-i18n="Export CSV">Export CSV</button>
+            <button id="printReportButton" class="primary-button" type="button" data-i18n="Print report">Print report</button>
+        </div>
+    </section>
+
+    <details class="card yearly-overview-details">
+        <summary>Yearly overview</summary>
+        <div id="yearlyOverviewYear" class="label"></div>
+        <div id="yearlyOverviewList" class="yearly-overview-list"></div>
+        <canvas id="yearlyChart" class="chart-canvas" height="190"
+            aria-label="Income and spending per month across the year"></canvas>
+    </details>
+
+</div>
+
+<div id="calendarDetailsPage" class="page">
+
+    <button class="back-button" onclick="showPage('calendarPage')">
+        ← Monthly activity
+    </button>
+
+    <section class="card" style="margin-top:16px;">
+        <h2 id="calendarDetailsTitle">History</h2>
+        <div id="calendarDetailsMonth" class="label"></div>
+        <div id="calendarDetailsList" class="calendar-activity-list"></div>
+    </section>
+
+</div>
+
+
+
+
+<!-- ================= SETTINGS (menu) ================= -->
+
+<div id="settingsPage" class="page">
+
+    <button class="back-button" onclick="showPage('homePage')">
+        ← Home
+    </button>
+
+    <section class="card settings-intro" style="margin-top:16px;">
+        <div class="page-header">
+            <div class="settings-placeholder-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="36" height="36"><path d="M12 15.2A3.2 3.2 0 1 0 12 8.8A3.2 3.2 0 0 0 12 15.2Z" stroke="currentColor" stroke-width="1.6"/><path d="M19.4 15A1.7 1.7 0 0 0 19.74 16.87L19.8 16.94L18.94 18.43L18.85 18.39A1.7 1.7 0 0 0 16.9 18.55L16.82 18.61A1.7 1.7 0 0 0 15.93 20.2V20.3H14.2L14.17 20.2A1.7 1.7 0 0 0 12.7 19.03H12.6A1.7 1.7 0 0 0 11.1 20.2L11.07 20.3H9.34V20.2A1.7 1.7 0 0 0 8.45 18.61L8.37 18.55A1.7 1.7 0 0 0 6.42 18.39L6.33 18.43L5.47 16.94L5.53 16.87A1.7 1.7 0 0 0 5.87 15V14.9A1.7 1.7 0 0 0 4.4 13.72H4.3V12H4.4A1.7 1.7 0 0 0 5.87 10.82V10.72A1.7 1.7 0 0 0 5.53 8.85L5.47 8.78L6.33 7.29L6.42 7.33A1.7 1.7 0 0 0 8.37 7.17L8.45 7.11A1.7 1.7 0 0 0 9.34 5.52V5.42H11.07L11.1 5.52A1.7 1.7 0 0 0 12.6 6.69H12.7A1.7 1.7 0 0 0 14.17 5.52L14.2 5.42H15.93V5.52A1.7 1.7 0 0 0 16.82 7.11L16.9 7.17A1.7 1.7 0 0 0 18.85 7.33L18.94 7.29L19.8 8.78L19.74 8.85A1.7 1.7 0 0 0 19.4 10.72V10.82A1.7 1.7 0 0 0 20.87 12H20.97V13H20.87A1.7 1.7 0 0 0 19.4 14.9V15Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></div>
+            <h2>Settings</h2>
+            <p>Customize your It$umrou organizer. Changes are saved on this device.</p>
+        </div>
+    </section>
+
+    <section class="card settings-menu">
+        <button class="settings-menu-row" type="button" onclick="showPage('settingsAppearancePage')">
+            <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M12 3.5A8.5 8.5 0 0 0 12 20.5C10.5 18 10.5 6 12 3.5Z" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <span class="settings-menu-text">
+                <span class="settings-menu-title">Appearance</span>
+                <span class="settings-menu-sub" id="settingsAppearanceSummary">System</span>
+            </span>
+            <span class="settings-menu-chevron" aria-hidden="true">›</span>
+        </button>
+        <button class="settings-menu-row" type="button" onclick="showPage('settingsCategoriesPage')">
+            <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M11 4L20 4V13L12 21L3 12L11 4Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"/></svg></span>
+            <span class="settings-menu-text">
+                <span class="settings-menu-title">Categories</span>
+                <span class="settings-menu-sub">Rename M / S / $ / T / C / P</span>
+            </span>
+            <span class="settings-menu-chevron" aria-hidden="true">›</span>
+        </button>
+        <button class="settings-menu-row" type="button" onclick="showPage('settingsNotificationsPage')">
+            <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M6 10C6 6.5 8.5 4 12 4C15.5 4 18 6.5 18 10C18 13.5 19.5 15 19.5 16H4.5C4.5 15 6 13.5 6 10Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 19A2 2 0 0 0 14 19" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <span class="settings-menu-text">
+                <span class="settings-menu-title">Notifications</span>
+                <span class="settings-menu-sub" id="settingsNotificationsSummary">All on</span>
+            </span>
+            <span class="settings-menu-chevron" aria-hidden="true">›</span>
+        </button>
+        <button class="settings-menu-row" type="button" onclick="showPage('settingsBackupPage')">
+            <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M12 4V14M12 14L8.5 10.5M12 14L15.5 10.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 16V18.5A1.5 1.5 0 0 0 6.5 20H17.5A1.5 1.5 0 0 0 19 18.5V16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <span class="settings-menu-text">
+                <span class="settings-menu-title">Data &amp; backup</span>
+                <span class="settings-menu-sub">Export, restore, reminders</span>
+            </span>
+            <span class="settings-menu-chevron" aria-hidden="true">›</span>
+        </button>
+        <button class="settings-menu-row" type="button" onclick="showPage('settingsAuditPage')">
+            <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M8.5 12.5L10.8 14.8L15.5 9.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="settings-menu-text">
+                <span class="settings-menu-title">Data health &amp; audit</span>
+                <span class="settings-menu-sub">Check for issues in your data</span>
+            </span>
+            <span class="settings-menu-chevron" aria-hidden="true">›</span>
+        </button>
+        <button class="settings-menu-row" type="button" onclick="showPage('settingsLanguagePage')">
+            <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 12H20.5M12 3.5C14.2 6 15.3 9 15.3 12C15.3 15 14.2 18 12 20.5C9.8 18 8.7 15 8.7 12C8.7 9 9.8 6 12 3.5Z" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <span class="settings-menu-text">
+                <span class="settings-menu-title" data-i18n="Language">Language</span>
+                <span class="settings-menu-sub" id="settingsLanguageSummary">English</span>
+            </span>
+            <span class="settings-menu-chevron" aria-hidden="true">›</span>
+        </button>
+        <button class="settings-menu-row" type="button" onclick="showPage('settingsSecurityPage')">
+            <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 11V7.5A4 4 0 0 1 16 7.5V11" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="15.2" r="1.1" fill="currentColor"/></svg></span>
+            <span class="settings-menu-text">
+                <span class="settings-menu-title" data-i18n="PIN/password protection">PIN/password protection</span>
+                <span class="settings-menu-sub" id="settingsSecuritySummary">Not protected</span>
+            </span>
+            <span class="settings-menu-chevron" aria-hidden="true">›</span>
+        </button>
+        <button class="settings-menu-row" type="button" onclick="showPage('settingsBillsPage')">
+            <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><rect x="3.5" y="5" width="17" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M7 3.5V7M17 3.5V7M3.5 9H20.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <span class="settings-menu-text">
+                <span class="settings-menu-title">Bills &amp; payment reminders</span>
+                <span class="settings-menu-sub" id="settingsBillsSummary">No bills yet</span>
+            </span>
+            <span class="settings-menu-chevron" aria-hidden="true">›</span>
+        </button>
+    </section>
+
+    <details class="card settings-more-details">
+        <summary class="settings-more-summary">
+            <span>More features</span>
+            <span id="settingsMoreSummary" class="settings-menu-sub">Recurring expenses, savings goals, recurring income</span>
+        </summary>
+        <div class="settings-menu">
+            <button class="settings-menu-row" type="button" onclick="showPage('settingsRecurringPage')">
+                <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M5 8H16A3 3 0 0 1 19 11V13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M19 16H8A3 3 0 0 1 5 13V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M16 5L19 8L16 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 19L5 16L8 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span class="settings-menu-text">
+                    <span class="settings-menu-title">Recurring expenses</span>
+                    <span class="settings-menu-sub" id="settingsRecurringSummary">None set up</span>
+                </span>
+                <span class="settings-menu-chevron" aria-hidden="true">›</span>
+            </button>
+            <button class="settings-menu-row" type="button" onclick="showPage('settingsGoalsPage')">
+                <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="4.5" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg></span>
+                <span class="settings-menu-text">
+                    <span class="settings-menu-title" data-i18n="Savings goals">Savings goals</span>
+                    <span class="settings-menu-sub" id="settingsGoalsSummary">No goals yet</span>
+                </span>
+                <span class="settings-menu-chevron" aria-hidden="true">›</span>
+            </button>
+            <button class="settings-menu-row" type="button" onclick="showPage('settingsIncomePage')">
+                <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5V16.5M9.5 9.5C9.5 8.4 10.6 7.5 12 7.5C13.4 7.5 14.5 8.3 14.5 9.4C14.5 12 9.5 11 9.5 13.6C9.5 14.7 10.6 15.5 12 15.5C13.4 15.5 14.5 14.6 14.5 13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+                <span class="settings-menu-text">
+                    <span class="settings-menu-title" data-i18n="Recurring income">Recurring income</span>
+                    <span class="settings-menu-sub" id="settingsIncomeSummary">None set up</span>
+                </span>
+                <span class="settings-menu-chevron" aria-hidden="true">›</span>
+            </button>
+        </div>
+    </details>
+
+    <section class="card settings-menu">
+        <button class="settings-menu-row" type="button" onclick="showPage('settingsAboutPage')">
+            <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="8.3" r="1" fill="currentColor"/><path d="M12 11.5V16.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+            <span class="settings-menu-text">
+                <span class="settings-menu-title">About</span>
+                <span class="settings-menu-sub">Version, credits</span>
+            </span>
+            <span class="settings-menu-chevron" aria-hidden="true">›</span>
+        </button>
+        <button class="settings-menu-row settings-menu-row-danger" type="button" onclick="showPage('settingsDangerPage')">
+            <span class="settings-menu-icon settings-menu-icon-danger" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M12 3.5L21 19.5H3L12 3.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 10V14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="16.7" r="1" fill="currentColor"/></svg></span>
+            <span class="settings-menu-text">
+                <span class="settings-menu-title settings-menu-title-danger">Danger zone</span>
+                <span class="settings-menu-sub">Reset or erase all data</span>
+            </span>
+            <span class="settings-menu-chevron" aria-hidden="true">›</span>
+        </button>
+    </section>
+
+</div>
+
+<!-- ================= SETTINGS: Appearance ================= -->
+<div id="settingsAppearancePage" class="page">
+    <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
+    <section class="card settings-section">
+        <div class="settings-section-heading">
+            <span class="settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M12 3.5A8.5 8.5 0 0 0 12 20.5C10.5 18 10.5 6 12 3.5Z" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <div><h2>Appearance</h2><div class="label">Choose how It$umrou looks on this device.</div></div>
+        </div>
+        <label class="label" for="themeSelect">Theme</label>
+        <select id="themeSelect" class="settings-select">
+            <option value="system">Match system</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+        </select>
+    </section>
+</div>
+
+<!-- ================= SETTINGS: Categories ================= -->
+<div id="settingsCategoriesPage" class="page">
+    <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
+    <section class="card settings-section">
+        <div class="settings-section-heading">
+            <span class="settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M11 4L20 4V13L12 21L3 12L11 4Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"/></svg></span>
+            <div><h2>Categories</h2><div class="label">Rename your monthly assignment categories. Leave blank to restore the default name.</div></div>
+        </div>
+        <div id="categoryNameFields" class="category-name-fields"></div>
+        <button id="saveCategoryNamesButton" class="primary-button" type="button">Save names</button>
+    </section>
+</div>
+
+<!-- ================= SETTINGS: Notifications ================= -->
+<div id="settingsNotificationsPage" class="page">
+    <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
+    <section class="card settings-section">
+        <div class="settings-section-heading">
+            <span class="settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M6 10C6 6.5 8.5 4 12 4C15.5 4 18 6.5 18 10C18 13.5 19.5 15 19.5 16H4.5C4.5 15 6 13.5 6 10Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 19A2 2 0 0 0 14 19" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <div><h2>Notifications</h2><div class="label">Choose which in-app reminders you want to see.</div></div>
+        </div>
+        <label class="notification-toggle-row">
+            <span>
+                <span class="settings-menu-title">Bill reminders</span>
+                <span class="label">Alerts for upcoming and overdue bills.</span>
+            </span>
+            <input id="notifyBillsToggle" type="checkbox">
+        </label>
+        <label class="notification-toggle-row">
+            <span>
+                <span class="settings-menu-title">Daily spending reminder</span>
+                <span class="label">Nightly nudge to record today's spending.</span>
+            </span>
+            <input id="notifyDailySpendingToggle" type="checkbox">
+        </label>
+        <label class="notification-toggle-row">
+            <span>
+                <span class="settings-menu-title">Backup reminder</span>
+                <span class="label">Reminds you to download a backup periodically.</span>
+            </span>
+            <input id="notifyBackupToggle" type="checkbox">
+        </label>
+    </section>
+</div>
+
+<!-- ================= SETTINGS: About ================= -->
+<div id="settingsAboutPage" class="page">
+    <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
+    <section class="card settings-section">
+        <div class="settings-intro" style="padding-bottom:0;">
+            <div class="page-header">
+                <div class="settings-placeholder-icon" aria-hidden="true">
+                    <img src="png/ItOumrou-Icon.png" alt="ItOumrou" style="width:56px;height:56px;">
+                </div>
+                <h2>It$umrou</h2>
+                <p>Version 1.0 · A private, on-device money organizer.</p>
+            </div>
+        </div>
+        <div class="label settings-help">All your data stays in this browser's local storage. Nothing is uploaded to any server.</div>
+        <div class="label settings-help">Made for tracking income, monthly assignments, daily spending, bills and bank balances.</div>
+    </section>
+</div>
+
+<!-- ================= SETTINGS: Danger zone ================= -->
+<div id="settingsDangerPage" class="page">
+    <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
+    <section class="card settings-section danger-zone">
+        <div class="settings-section-heading">
+            <span class="settings-section-icon settings-menu-icon-danger" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M12 3.5L21 19.5H3L12 3.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 10V14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="16.7" r="1" fill="currentColor"/></svg></span>
+            <div><h2>Danger zone</h2><div class="label">These actions cannot be undone. Download a backup first.</div></div>
+        </div>
+        <button id="eraseAllDataButton" class="danger-button" type="button">Erase all data</button>
+        <div class="label settings-help">This permanently deletes every month, bill, bank, goal and setting stored on this device.</div>
+    </section>
+</div>
+
+<!-- ================= SETTINGS: Data & backup ================= -->
+<div id="settingsBackupPage" class="page">
+    <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
+    <section class="card settings-section">
+        <div class="settings-section-heading">
+            <span class="settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M12 4V14M12 14L8.5 10.5M12 14L15.5 10.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 16V18.5A1.5 1.5 0 0 0 6.5 20H17.5A1.5 1.5 0 0 0 19 18.5V16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <div><h2>Data &amp; backup</h2><div class="label">Export a copy before changing phones or clearing browser data.</div></div>
+        </div>
+        <div class="settings-actions">
+            <button id="exportDataButton" class="secondary-button" type="button">Download Backup</button>
+            <label class="secondary-button settings-file-button" for="importDataInput">Restore Backup</label>
+            <input id="importDataInput" type="file" accept="application/json" hidden>
+            <div id="restorePreview" class="restore-preview" hidden>
+                <strong>Restore preview</strong>
+                <div id="restorePreviewText" class="label"></div>
+                <div class="restore-actions">
+                    <button id="confirmRestoreButton" class="primary-button" type="button">Restore this backup</button>
+                    <button id="cancelRestoreButton" class="secondary-button" type="button">Cancel</button>
+                </div>
+            </div>
+        </div>
+        <label class="label" for="backupIntervalSelect">Automatic backup reminder</label>
+        <select id="backupIntervalSelect" class="settings-select">
+            <option value="7">Every 7 days</option>
+            <option value="30">Every 30 days</option>
+            <option value="90">Every 90 days</option>
+            <option value="never">Never</option>
+        </select>
+        <div id="backupIntegrityStatus" class="label settings-help" role="status"></div>
+        <div class="label settings-help">The reminder stays inside the app; your data is never uploaded.</div>
+    </section>
+</div>
+
+<!-- ================= SETTINGS: Data health & audit ================= -->
+<div id="settingsAuditPage" class="page">
+    <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
+    <section class="card settings-section" aria-labelledby="auditTitle">
+        <div class="settings-section-heading">
+            <span class="settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M8.5 12.5L10.8 14.8L15.5 9.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <div><h2 id="auditTitle">Data health &amp; audit</h2><div class="label">Check totals, duplicate records and malformed local data without changing anything.</div></div>
+        </div>
+        <div class="settings-actions">
+            <button id="runAuditButton" class="secondary-button" type="button">Run consistency check</button>
+            <button id="repairAuditButton" class="secondary-button" type="button" hidden>Repair exact duplicates</button>
+        </div>
+        <pre id="auditReport" class="audit-report" role="status" aria-live="polite">No audit run yet.</pre>
+    </section>
+</div>
+
+<!-- ================= SETTINGS: Language ================= -->
+<div id="settingsLanguagePage" class="page">
+    <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
+    <section class="card settings-section">
+        <div class="settings-section-heading">
+            <span class="settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 12H20.5M12 3.5C14.2 6 15.3 9 15.3 12C15.3 15 14.2 18 12 20.5C9.8 18 8.7 15 8.7 12C8.7 9 9.8 6 12 3.5Z" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <div><h2 data-i18n="Language">Language</h2><div class="label" data-i18n="Choose the language used throughout the app.">Choose the language used throughout the app.</div></div>
+        </div>
+        <label class="label" for="languageSelect" data-i18n="App language">App language</label>
+        <select id="languageSelect" class="settings-select" aria-label="Language">
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+            <option value="ar">العربية</option>
+        </select>
+    </section>
+</div>
+
+<!-- ================= SETTINGS: Security ================= -->
+<div id="settingsSecurityPage" class="page">
+    <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
+    <section class="card settings-section security-settings">
+        <div class="settings-section-heading">
+            <span class="settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 11V7.5A4 4 0 0 1 16 7.5V11" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="15.2" r="1.1" fill="currentColor"/></svg></span>
+            <div><h2 data-i18n="PIN/password protection">PIN/password protection</h2><div class="label" data-i18n="Protect this app on shared devices.">Protect this app on shared devices.</div></div>
+        </div>
+        <input id="securityPinInput" type="password" maxlength="64" autocomplete="new-password" placeholder="New PIN or password">
+        <div class="security-actions">
+            <button id="setPinButton" class="secondary-button" type="button" data-i18n="Set protection">Set protection</button>
+            <button id="lockButton" class="secondary-button" type="button" data-i18n="Lock now">Lock now</button>
+            <button id="removePinButton" class="danger-button" type="button" data-i18n="Remove protection">Remove protection</button>
+        </div>
+        <div id="securityStatus" class="label"></div>
+    </section>
+</div>
+
+<!-- ================= SETTINGS: Bills ================= -->
+<div id="settingsBillsPage" class="page">
+    <button class="back-button" onclick="showPage('homePage')">← Home</button>
+    <section class="card settings-section">
+        <div class="settings-section-heading">
+            <span class="settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><rect x="3.5" y="5" width="17" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M7 3.5V7M17 3.5V7M3.5 9H20.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <div><h2>Bills &amp; payment reminders</h2><div class="label">Add recurring bills once and get an in-app reminder before they are due. Marking a bill paid only clears its reminder; record spending separately.</div></div>
+        </div>
+        <div class="bill-form">
+            <label class="label" for="billName">Bill name</label>
+            <input id="billName" type="text" maxlength="100" placeholder="Rent, electricity, subscription" autocomplete="off">
+            <label class="label" for="billAmount">Amount</label>
+            <input id="billAmount" type="number" min="1" max="1000000000" step="1" inputmode="numeric" placeholder="Amount">
+            <label class="label" for="billDueDate">Next due date</label>
+            <input id="billDueDate" type="date">
+            <label class="label" for="billBank">Pay from</label>
+            <select id="billBank">
+                <option value="Bankily">Bankily</option><option value="Click">Click</option>
+                <option value="Sedad">Sedad</option><option value="Masrvi">Masrvi</option>
+            </select>
+            <label class="label" for="billReminderDays">Remind me this many days before</label>
+            <input id="billReminderDays" type="number" min="0" max="30" step="1" value="3" inputmode="numeric">
+            <button id="addBillButton" class="primary-button" type="button">Add bill</button>
+        </div>
+        <div class="bill-filters">
+            <select id="billFilterBank" aria-label="Filter by bank">
+                <option value="all">All banks</option>
+                <option value="Bankily">Bankily</option>
+                <option value="Click">Click</option>
+                <option value="Sedad">Sedad</option>
+                <option value="Masrvi">Masrvi</option>
+            </select>
+            <select id="billFilterStatus" aria-label="Filter by status">
+                <option value="all">All statuses</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="overdue">Overdue</option>
+                <option value="paid">Paid</option>
+            </select>
+            <select id="billSortOrder" aria-label="Sort bills">
+                <option value="dueDate">Sort by due date</option>
+                <option value="amountDesc">Amount: high to low</option>
+                <option value="amountAsc">Amount: low to high</option>
+                <option value="name">Name (A–Z)</option>
+            </select>
+        </div>
+        <div id="billsList"></div>
+    </section>
+</div>
+
+<!-- ================= SETTINGS: Recurring expenses ================= -->
+<div id="settingsRecurringPage" class="page">
+    <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
+    <section class="card">
+        <h2>Recurring expenses</h2>
+        <div class="label">Automatically add a confirmed expense once each month.</div>
+        <div class="recurring-form">
+            <input id="recurringDescription" type="text" maxlength="120"
+                placeholder="Description (for example: rent)">
+            <input id="recurringAmount" type="number" min="1" max="1000000000"
+                step="1" placeholder="Amount">
+            <select id="recurringCategory">
+                <option value="OTHER">Other</option>
+                <option value="M">M — Mom</option>
+                <option value="S">S — Charity</option>
+                <option value="$">$ — Savings</option>
+                <option value="T">T — Taxi</option>
+                <option value="C">C — Cigar</option>
+                <option value="P">P — Personal needs</option>
+            </select>
+            <select id="recurringBank">
+                <option value="Bankily">Bankily</option>
+                <option value="Click">Click</option>
+                <option value="Sedad">Sedad</option>
+                <option value="Masrvi">Masrvi</option>
+            </select>
+            <input id="recurringDay" type="number" min="1" max="28" step="1"
+                placeholder="Day of month (1–28)">
+            <button id="addRecurringButton" class="primary-button" type="button">
+                Add recurring expense
+            </button>
+        </div>
+        <div id="recurringList"></div>
+    </section>
+</div>
+
+<!-- ================= SETTINGS: Savings goals ================= -->
+<div id="settingsGoalsPage" class="page">
+    <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
+    <section class="card">
+        <h2 data-i18n="Savings goals">Savings goals</h2>
+        <div class="label" data-i18n="Track progress toward the things you want to buy or build.">
+            Track progress toward the things you want to buy or build.
+        </div>
+        <div class="recurring-form">
+            <input id="goalName" type="text" maxlength="80" placeholder="Goal name">
+            <input id="goalTarget" type="number" min="1" max="1000000000" step="1" placeholder="Target amount">
+            <input id="goalSaved" type="number" min="0" max="1000000000" step="1" placeholder="Already saved">
+            <button id="addGoalButton" class="primary-button" type="button" data-i18n="Add savings goal">Add savings goal</button>
+        </div>
+        <div id="savingsGoalsList"></div>
+        <button id="undoGoalContributionButton" class="secondary-button" type="button" hidden>
+            Undo last automatic contribution
+        </button>
+    </section>
+</div>
+
+<!-- ================= SETTINGS: Recurring income ================= -->
+<div id="settingsIncomePage" class="page">
+    <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
+    <section class="card">
+        <h2 data-i18n="Recurring income">Recurring income</h2>
+        <div class="label" data-i18n="Track salary or other income that arrives automatically each month.">
+            Track salary or other income that arrives automatically each month.
+        </div>
+        <div class="recurring-form">
+            <input id="recurringIncomeDescription" type="text" maxlength="120" placeholder="Description (for example: salary)">
+            <input id="recurringIncomeAmount" type="number" min="1" max="1000000000" step="1" placeholder="Amount">
+            <select id="recurringIncomeBank">
+                <option value="Bankily">Bankily</option>
+                <option value="Click">Click</option>
+                <option value="Sedad">Sedad</option>
+                <option value="Masrvi">Masrvi</option>
+            </select>
+            <input id="recurringIncomeDay" type="number" min="1" max="28" step="1" placeholder="Day of month (1–28)">
+            <button id="addRecurringIncomeButton" class="primary-button" type="button" data-i18n="Add recurring income">Add recurring income</button>
+        </div>
+        <div id="recurringIncomeList"></div>
+    </section>
+</div>
+
+
+<div id="message" class="message"></div>
+<div id="undoMessage" class="undo-message" hidden></div>
+
+</div>
+
+<div id="setupWizard" class="setup-overlay" hidden>
+    <section class="setup-card" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
+        <div class="setup-progress" aria-label="Setup progress"><span></span><span></span><span></span></div>
+        <div class="setup-step" data-step="1">
+            <div class="setup-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="40" height="40"><path d="M12 3L13.8 9.2L20 11L13.8 12.8L12 19L10.2 12.8L4 11L10.2 9.2L12 3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
+            <h2 id="setupTitle">Welcome to It$umrou</h2>
+            <p class="label">A private, simple way to organize your money. This quick setup takes less than a minute.</p>
+        </div>
+        <div class="setup-step" data-step="2" hidden>
+            <div class="setup-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="40" height="40"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M12 7.5V16.5M9.5 9.5C9.5 8.4 10.6 7.5 12 7.5C13.4 7.5 14.5 8.3 14.5 9.4C14.5 12 9.5 11 9.5 13.6C9.5 14.7 10.6 15.5 12 15.5C13.4 15.5 14.5 14.6 14.5 13.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+            <h2>Start with your monthly income</h2>
+            <p class="label">You can skip this and add it later from the home screen.</p>
+            <label class="label" for="wizardIncomeInput">Monthly income (MRU)</label>
+            <input id="wizardIncomeInput" type="number" min="0" max="1000000000" step="1" inputmode="numeric" placeholder="0">
+            <label class="label" for="wizardBankSelect">Main bank</label>
+            <select id="wizardBankSelect">
+                <option value="Bankily">Bankily</option><option value="Click">Click</option>
+                <option value="Sedad">Sedad</option><option value="Masrvi">Masrvi</option>
+            </select>
+        </div>
+        <div class="setup-step" data-step="3" hidden>
+            <div class="setup-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="40" height="40"><path d="M6 10C6 6.5 8.5 4 12 4C15.5 4 18 6.5 18 10C18 13.5 19.5 15 19.5 16H4.5C4.5 15 6 13.5 6 10Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 19A2 2 0 0 0 14 19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+            <h2>Keep your data safe</h2>
+            <p class="label">Choose how often It$umrou should remind you to download a local backup. You can change this anytime in Settings.</p>
+            <label class="label" for="wizardBackupInterval">Backup reminder</label>
+            <select id="wizardBackupInterval">
+                <option value="7">Every 7 days</option><option value="30" selected>Every 30 days</option>
+                <option value="90">Every 90 days</option><option value="never">Never</option>
+            </select>
+        </div>
+        <div class="setup-actions">
+            <button id="setupSkipButton" class="text-button" type="button">Skip setup</button>
+            <button id="setupBackButton" class="secondary-button" type="button" hidden>Back</button>
+            <button id="setupNextButton" class="primary-button" type="button">Continue</button>
+        </div>
+    </section>
+</div>
+
+<div id="lockOverlay" class="lock-overlay" hidden>
+    <section class="lock-card">
+        <div class="lock-icon"><svg viewBox="0 0 24 24" fill="none" width="36" height="36"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 11V7.5A4 4 0 0 1 16 7.5V11" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="15.2" r="1.1" fill="currentColor"/></svg></div>
+        <h2 data-i18n="App locked">App locked</h2>
+        <p class="label" data-i18n="Enter your PIN or password to continue.">Enter your PIN or password to continue.</p>
+        <input id="unlockPinInput" type="password" autocomplete="current-password" placeholder="PIN or password">
+        <button id="unlockButton" class="primary-button" type="button" data-i18n="Unlock">Unlock</button>
+        <div id="unlockError" class="lock-error" role="alert"></div>
+    </section>
+</div>
+
+<nav class="bottom-nav" id="bottomNav">
+
+    <button class="nav-item active" aria-label="Home" title="Home" aria-current="page" data-page="homePage" onclick="showPage('homePage')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+            <path d="M3 10.5L12 3L21 10.5V21H14.5V14H9.5V21H3V10.5Z"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linejoin="round"/>
+        </svg>
+    </button>
+
+    <button class="nav-item" aria-label="Banks" title="Banks" data-page="banksPage" onclick="showPage('banksPage')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+            <path d="M3 9L12 4L21 9"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"/>
+            <path d="M5 10V19M9 10V19M15 10V19M19 10V19"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"/>
+            <path d="M3 20H21"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"/>
+        </svg>
+    </button>
+
+    <button class="nav-item" aria-label="Daily spending" title="Daily spending" data-page="spendingPage" onclick="showPage('spendingPage')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+            <path d="M4 7.5C4 6.12 5.12 5 6.5 5H17.5C18.88 5 20 6.12 20 7.5V16.5C20 17.88 18.88 19 17.5 19H6.5C5.12 19 4 17.88 4 16.5V7.5Z"
+                  stroke="currentColor"
+                  stroke-width="1.8"/>
+            <path d="M4 9H20"
+                  stroke="currentColor"
+                  stroke-width="1.8"/>
+            <circle cx="16.5" cy="14" r="1"
+                    fill="currentColor"/>
+        </svg>
+    </button>
+
+    <button class="nav-item" aria-label="Calendar" title="Calendar" data-page="calendarPage" onclick="showPage('calendarPage')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+            <rect x="3.5" y="5" width="17" height="16"
+                  rx="2"
+                  stroke="currentColor"
+                  stroke-width="1.8"/>
+            <path d="M7 3.5V7M17 3.5V7M3.5 9H20.5"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"/>
+            <path d="M7 13H9M12 13H14M17 13H19M7 17H9M12 17H14"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"/>
+        </svg>
+    </button>
+
+    <button class="nav-item" aria-label="Settings" title="Settings" data-page="settingsPage" onclick="showPage('settingsPage')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+            <path d="M12 15.2A3.2 3.2 0 1 0 12 8.8A3.2 3.2 0 0 0 12 15.2Z"
+                  stroke="currentColor"
+                  stroke-width="1.8"/>
+            <path d="M19.4 15A1.7 1.7 0 0 0 19.74 16.87L19.8 16.94L18.94 18.43L18.85 18.39A1.7 1.7 0 0 0 16.9 18.55L16.82 18.61A1.7 1.7 0 0 0 15.93 20.2V20.3H14.2L14.17 20.2A1.7 1.7 0 0 0 12.7 19.03H12.6A1.7 1.7 0 0 0 11.1 20.2L11.07 20.3H9.34V20.2A1.7 1.7 0 0 0 8.45 18.61L8.37 18.55A1.7 1.7 0 0 0 6.42 18.39L6.33 18.43L5.47 16.94L5.53 16.87A1.7 1.7 0 0 0 5.87 15V14.9A1.7 1.7 0 0 0 4.4 13.72H4.3V12H4.4A1.7 1.7 0 0 0 5.87 10.82V10.72A1.7 1.7 0 0 0 5.53 8.85L5.47 8.78L6.33 7.29L6.42 7.33A1.7 1.7 0 0 0 8.37 7.17L8.45 7.11A1.7 1.7 0 0 0 9.34 5.52V5.42H11.07L11.1 5.52A1.7 1.7 0 0 0 12.6 6.69H12.7A1.7 1.7 0 0 0 14.17 5.52L14.2 5.42H15.93V5.52A1.7 1.7 0 0 0 16.82 7.11L16.9 7.17A1.7 1.7 0 0 0 18.85 7.33L18.94 7.29L19.8 8.78L19.74 8.85A1.7 1.7 0 0 0 19.4 10.72V10.82A1.7 1.7 0 0 0 20.87 12H20.97V13H20.87A1.7 1.7 0 0 0 19.4 14.9V15Z"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                  stroke-linejoin="round"/>
+        </svg>
+    </button>
+
+</nav>
+
+
+    <script src="js/app.js?v=20260903-2336"></script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js").catch(err => console.warn("It$umrou service worker registration failed:", err));
+  });
+}
+</script>
+</body>
+</html>

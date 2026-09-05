@@ -8291,7 +8291,11 @@ function updateAll() {
     checkBillReminders();
     checkBackupReminder();
     checkBalanceCheckReminder();
-    syncNotificationState();
+    try {
+        syncNotificationState();
+    } catch {
+        // Notification sync must never interrupt the money organizer.
+    }
 
     if (
         document

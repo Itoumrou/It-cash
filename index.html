@@ -13,27 +13,31 @@
 <script>
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal) {
-        await OneSignal.init({
-            appId: "49a5e870-7b97-4fcc-b748-af246e962524",
-            serviceWorkerPath: "It-cash/service-worker.js",
-            serviceWorkerParam: {
-                scope: "/It-cash/"
-            },
-            safari_web_id: "web.onesignal.auto.4979c8f7-1397-4bb3-8d4b-5aebacc6595c",
-            notifyButton: {
-                enable: true,
-                position: "bottom-right",
-                offset: {
-                    bottom: "88px"
+        try {
+            await OneSignal.init({
+                appId: "49a5e870-7b97-4fcc-b748-af246e962524",
+                serviceWorkerPath: "It-cash/service-worker.js",
+                serviceWorkerParam: {
+                    scope: "/It-cash/"
+                },
+                safari_web_id: "web.onesignal.auto.4979c8f7-1397-4bb3-8d4b-5aebacc6595c",
+                notifyButton: {
+                    enable: true,
+                    position: "bottom-right",
+                    offset: {
+                        bottom: "88px"
+                    }
                 }
-            }
-        });
-        if (OneSignal.User?.PushSubscription) {
-            OneSignal.User.PushSubscription.addEventListener("change", () => {
-                window.syncNotificationState?.();
             });
+            if (OneSignal.User?.PushSubscription) {
+                OneSignal.User.PushSubscription.addEventListener("change", () => {
+                    window.syncNotificationState?.();
+                });
+            }
+            window.syncNotificationState?.();
+        } catch (error) {
+            console.warn("It$umrou notifications unavailable:", error);
         }
-        window.syncNotificationState?.();
     });
 </script>
 
@@ -1535,7 +1539,7 @@
 </nav>
 
 
-    <script src="js/app.js?v=20260905-1300"></script>
+    <script src="js/app.js?v=20260905-1400"></script>
 
 <script>
 if ("serviceWorker" in navigator) {

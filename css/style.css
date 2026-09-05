@@ -2271,6 +2271,14 @@ button.press-feedback {
     z-index: 1000;
 }
 
+/* Keep the OneSignal bell above the navigation bar on iPhone. */
+#onesignal-bell-container,
+.onesignal-bell-container {
+    bottom: calc(88px + env(safe-area-inset-bottom)) !important;
+    right: 18px !important;
+    z-index: 999 !important;
+}
+
 .nav-item {
     position: relative;
     flex: 1;

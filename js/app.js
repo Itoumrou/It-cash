@@ -38,7 +38,9 @@ const NOTIFICATION_PREFS_KEY = "itoumrou_notification_prefs";
 const SAVINGS_TARGET_KEY = "itoumrou_savings_target";
 const ZAKAT_PREFS_KEY = "itoumrou_zakat_preferences";
 const MAX_AMOUNT = 1000000000;
+const NOTIFICATION_SYNC_URL = "https://itoumrou-reminders.trabi2717.workers.dev/sync";
 let pendingRestore = null;
+let lastNotificationSync = "";
 
 const TRANSLATIONS = {
     fr: {
@@ -942,6 +944,57 @@ function setMessage(text) {
             }
         }
     }
+}
+
+function syncNotificationState() {
+    if (!window.OneSignalDeferred) {
+        return;
+    }
+    const bills = loadBills()
+        .filter(bill => !bill.paid && validDate(bill.dueDate))
+        .sort((first, second) => first.dueDate.localeCompare(second.dueDate));
+    const nextBill = bills[0] || null;
+    const safeText = document.getElementById("dashboardSafeToSpend")?.textContent || "";
+    const safeToSpend = Number(safeText.replace(/[^0-9-]/g, ""));
+    const daysText = document.getElementById("dashboardDaysLeft")?.textContent || "";
+    const daysMatch = daysText.match(/\d+/);
+    const status = document.getElementById("dashboardStatus")?.textContent || "";
+    const payload = {
+        nextBill: nextBill ? {
+            name: nextBill.name,
+            dueDate: nextBill.dueDate,
+            amount: Math.round(Number(nextBill.amount) || 0),
+            reminderDays: Math.max(0, Math.round(Number(nextBill.reminderDays) || 0)),
+            paid: false
+        } : null,
+        safeToSpend: Number.isFinite(safeToSpend) ? safeToSpend : null,
+        status: status,
+        daysLeft: daysMatch ? Number(daysMatch[0]) : null
+    };
+    const serialized = JSON.stringify(payload);
+    if (serialized === lastNotificationSync) {
+        return;
+    }
+    window.OneSignalDeferred.push(async function(OneSignal) {
+        const subscriptionId = OneSignal.User?.PushSubscription?.id;
+        if (!subscriptionId) {
+            return;
+        }
+        if (serialized === lastNotificationSync) {
+            return;
+        }
+        lastNotificationSync = serialized;
+        try {
+            await fetch(NOTIFICATION_SYNC_URL, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ subscriptionId, ...payload })
+            });
+        } catch {
+            // Reminder sync is best effort and never blocks the app.
+            lastNotificationSync = "";
+        }
+    });
 }
 
 function triggerCelebration() {
@@ -8238,6 +8291,7 @@ function updateAll() {
     checkBillReminders();
     checkBackupReminder();
     checkBalanceCheckReminder();
+    syncNotificationState();
 
     if (
         document

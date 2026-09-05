@@ -28,6 +28,12 @@
                 }
             }
         });
+        if (OneSignal.User?.PushSubscription) {
+            OneSignal.User.PushSubscription.addEventListener("change", () => {
+                window.syncNotificationState?.();
+            });
+        }
+        window.syncNotificationState?.();
     });
 </script>
 

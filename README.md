@@ -23,6 +23,18 @@ Then open `http://localhost:8000`.
 
 The app is static and needs no build step or server-side code.
 
+## iPhone notifications
+
+The app uses OneSignal Web Push. For notifications to work on iPhone:
+
+1. Use iOS 16.4 or newer.
+2. Open the HTTPS GitHub Pages URL in Safari.
+3. Add the site to the Home Screen.
+4. Open the installed app and allow notifications.
+5. Confirm the device appears under OneSignal **Audience > Subscriptions**.
+
+Keep `service-worker.js` in the repository root. It includes the OneSignal worker and the app cache worker, so do not add a second `OneSignalSDKWorker.js` file.
+
 ## Privacy and data
 
 App data stays in the browser's local storage unless you export it. The app does not upload your data, but browser local storage is not encrypted. The optional PIN helps prevent casual access; it is not full device security. Use the built-in backup feature before clearing browser data or moving to another device.

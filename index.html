@@ -12,27 +12,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#111111">
-<title>ItOumrou</title>
+<title>It$umrou</title>
 
 
 </head>
 
 <body>
 
-<div class="app">
-
-<header class="header">
-
-    <div class="app-header">
-    <div class="app-logo">
-        <img src="png/ItOumrou-Icon.png" alt="ItOumrou">
-    </div>
-
-    <h1 class="app-name">It$umrou</h1>
+<div id="appSplash" class="app-splash" role="status" aria-label="Opening It$umrou">
+    <img src="png/ItOumrou-Icon.png" alt="">
+    <strong>It$umrou</strong>
 </div>
 
-</header>
+<div class="app">
 
+<div id="fxLayer" class="fx-layer" aria-hidden="true"></div>
 
 <!-- ================= HOME ================= -->
 
@@ -69,9 +63,15 @@
     </div>
 
     <div class="dashboard-hero">
-        <div class="dashboard-hero-label">Safe to spend today</div>
+        <div class="dashboard-hero-label">Safe to spend today from P, C &amp; T</div>
         <div id="dashboardSafeToSpend" class="dashboard-hero-amount">0 MRU</div>
-        <div id="dashboardSafeToSpendHint" class="dashboard-hero-hint">Add your income to see a daily guide.</div>
+        <div id="dashboardSafeToSpendHint" class="dashboard-hero-hint">Confirm your income to activate your spending guide.</div>
+    </div>
+
+    <div class="dashboard-outlook">
+        <div class="dashboard-outlook-label">Projected month-end</div>
+        <div id="dashboardProjectedEndBalance" class="dashboard-outlook-amount">0 MRU</div>
+        <div id="dashboardProjectedEndHint" class="dashboard-outlook-hint">Confirm income to estimate what remains at month-end.</div>
     </div>
 
     <div id="dashboardStatus" class="dashboard-status neutral" role="status">
@@ -101,6 +101,30 @@
     </div>
 
     <div class="dashboard-group">
+        <div class="dashboard-group-title">Spendable categories · P, C &amp; T</div>
+        <div class="dashboard-quick-stats dashboard-spendable-stats">
+            <div>
+                <div class="label"><span id="dashboardSpendablePName">Personal needs</span></div>
+                <strong id="dashboardSpendableP">0 MRU</strong>
+                <small id="dashboardSpendablePUsed">Used this month: 0 MRU</small>
+                <div class="dashboard-spendable-progress"><span id="dashboardSpendablePProgress"></span></div>
+            </div>
+            <div>
+                <div class="label"><span id="dashboardSpendableCName">Cigar</span></div>
+                <strong id="dashboardSpendableC">0 MRU</strong>
+                <small id="dashboardSpendableCUsed">Used this month: 0 MRU</small>
+                <div class="dashboard-spendable-progress"><span id="dashboardSpendableCProgress"></span></div>
+            </div>
+            <div>
+                <div class="label"><span id="dashboardSpendableTName">Taxi</span></div>
+                <strong id="dashboardSpendableT">0 MRU</strong>
+                <small id="dashboardSpendableTUsed">Used this month: 0 MRU</small>
+                <div class="dashboard-spendable-progress"><span id="dashboardSpendableTProgress"></span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-group">
         <div class="dashboard-group-title">Banks &amp; bills</div>
         <div class="dashboard-quick-stats">
             <div>
@@ -116,9 +140,19 @@
     </div>
 
     <div id="nextBillNotice" class="next-bill-notice" hidden></div>
+    <div id="dashboardBillsGuide" class="dashboard-bills-guide" hidden></div>
 
     <div id="budgetWarning" class="budget-warning" role="alert" hidden></div>
 
+</section>
+
+<section id="homeNextAction" class="card home-next-action" aria-labelledby="homeNextActionTitle">
+    <div class="next-action-copy">
+        <div class="eyebrow">Next step</div>
+        <h2 id="homeNextActionTitle">Confirm your income</h2>
+        <div id="homeNextActionText" class="label">Start your month by confirming where your income arrived.</div>
+    </div>
+    <button id="homeNextActionButton" class="primary-button" type="button">Set up income</button>
 </section>
 
 <section class="card insights-card home-insights" aria-labelledby="insightsTitle">
@@ -150,25 +184,6 @@
         <button class="primary-button" type="button" onclick="showPage('banksPage')">Check balances</button>
     </div>
 </section>
-
-<section class="card bills-home-card home-bills">
-    <div class="section-heading">
-        <div>
-            <h2>Upcoming bills</h2>
-            <div class="label">Stay ahead of due dates and payment reminders.</div>
-        </div>
-    </div>
-    <button type="button" class="assignments-entry-card" onclick="showPage('settingsBillsPage')">
-        <span class="savings-entry-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M6 3H18V21L15.5 19L13 21L10.5 19L8 21L5.5 19L6 21V3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.5 8H15.5M8.5 11.5H15.5M8.5 15H13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
-        <span class="savings-entry-text">
-            <span class="savings-entry-title">View upcoming bills</span>
-            <span id="homeBillsSummary" class="savings-entry-sub">No bills yet</span>
-        </span>
-        <span class="settings-menu-chevron" aria-hidden="true">›</span>
-    </button>
-</section>
-
-
 
 <section class="card home-income">
 
@@ -267,6 +282,7 @@
 </section>
 
 
+
 <section class="card home-actions">
     <h2>Quick actions</h2>
     <button id="dailySpendingButton" class="primary-button">
@@ -288,21 +304,17 @@
         ← Home
     </button>
 
-    <section class="card banks-total-card" style="margin-top:16px;">
+    <div class="page-header">
+        <h1>Banks</h1>
+        <p>Manage accounts, check balances, and track transfers</p>
+    </div>
+
+    <section class="card banks-total-card">
         <div class="banks-total-label">Total across all banks</div>
         <div id="banksTotalBalance" class="banks-total-value">0 MRU</div>
     </section>
 
-    <button type="button" class="savings-entry-card" onclick="showPage('savingsPage')">
-        <span class="savings-entry-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M4 12.5C4 9 7.5 6.5 12 6.5C15 6.5 17.2 7.6 18.4 9H20.5L19 11.2C19.4 11.9 19.6 12.7 19.6 13.5C19.6 16.5 16.2 18.5 12 18.5C7.5 18.5 4 16 4 12.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="9" cy="12" r="0.9" fill="currentColor"/><path d="M9 6.5V4.5M6.5 7.5L5.2 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
-        <span class="savings-entry-text">
-            <span class="savings-entry-title">Savings</span>
-            <span class="savings-entry-sub">Track your $ savings, fund it, and see projections</span>
-        </span>
-        <span class="settings-menu-chevron" aria-hidden="true">›</span>
-    </button>
-
-    <section class="card">
+    <section class="card bank-management-card">
 
         <h2>Manage Banks</h2>
 
@@ -313,7 +325,7 @@
     <section class="card balance-check-card">
         <h2>Monthly balance check</h2>
         <div class="label">
-            Compare each bank's real-life balance to what the app shows. Any difference is
+            Enter each bank's real-life balance and compare it with what the app shows. Any difference is
             automatically recorded as an income or expense so the app always matches reality.
         </div>
         <div id="balanceCheckStatus" class="balance-check-status"></div>
@@ -323,7 +335,7 @@
         </button>
     </section>
 
-    <section class="card">
+    <section class="card bank-transfer-card">
         <h2>Bank-to-bank transfer</h2>
         <div class="label">
             Move money between your accounts. Assignments remain tracked separately.
@@ -371,7 +383,7 @@
         </form>
     </section>
 
-    <section class="card">
+    <section class="card bank-history-card">
         <h2>Bank transfer history</h2>
         <div id="bankTransferHistory" class="calendar-activity-list"></div>
     </section>
@@ -387,7 +399,12 @@
         ← Banks
     </button>
 
-    <section class="card" style="margin-top:16px;">
+    <div class="page-header">
+        <h1 id="bankDetailsTitle">Bank Details</h1>
+        <p id="bankDetailsSubtitle">Manage this account</p>
+    </div>
+
+    <section class="card" style="margin-top:0;">
 
         <div id="bankDetails"></div>
 
@@ -400,17 +417,79 @@
 
 <div id="savingsPage" class="page">
 
-    <button class="back-button" onclick="showPage('banksPage')">
-        ← Banks
+    <button class="back-button" onclick="showPage('homePage')">
+        ← Home
     </button>
 
-    <section class="card savings-hero-card" style="margin-top:16px;">
+    <div class="page-header">
+        <h1>Savings</h1>
+        <p>Build your financial future with smart planning</p>
+    </div>
+
+    <section class="card savings-hero-card">
         <div class="label">Saved so far ($ · Masrvi)</div>
         <div id="savingsBalance" class="income-amount">0 MRU</div>
         <div id="savingsMonthlyPlan" class="label"></div>
+        <div class="savings-funding-summary" aria-label="Savings funding summary">
+            <div><span>Planned</span><strong id="savingsPlannedAmount">0 MRU</strong></div>
+            <div><span>Funded</span><strong id="savingsFundedAmount">0 MRU</strong></div>
+            <div><span>Waiting</span><strong id="savingsWaitingAmount">0 MRU</strong></div>
+        </div>
     </section>
 
-    <section class="card">
+    <section class="card zakat-card">
+        <details class="zakat-details">
+            <summary>
+                <div class="section-heading">
+                    <div>
+                        <h2>Zakat on savings</h2>
+                        <div class="label">Estimate Zakat al-mal for money you have held.</div>
+                    </div>
+                    <span class="zakat-rate">2.5%</span>
+                </div>
+            </summary>
+            <div class="zakat-content">
+                <div class="zakat-note">This is a planning estimate. Ask a trusted local scholar about your school of thought, eligible debts, and the nisab basis you should use.</div>
+                <div class="bill-form zakat-form">
+                    <label class="label" for="zakatSavingsAmount">Current savings and cash</label>
+                    <input id="zakatSavingsAmount" type="number" min="0" max="1000000000" step="1" inputmode="numeric" placeholder="Amount in MRU">
+                    <label class="label" for="zakatImmediateDebts">Immediate eligible debts</label>
+                    <input id="zakatImmediateDebts" type="number" min="0" max="1000000000" step="1" inputmode="numeric" placeholder="0 MRU">
+                    <label class="label" for="zakatNisabBasis">Nisab basis</label>
+                    <select id="zakatNisabBasis">
+                        <option value="gold">Gold: 85 grams</option>
+                        <option value="silver">Silver: 595 grams</option>
+                        <option value="custom">Enter a local nisab amount</option>
+                    </select>
+                    <div id="zakatMetalPriceField">
+                        <label class="label" for="zakatMetalPrice">Current price per gram</label>
+                        <input id="zakatMetalPrice" type="number" min="0" max="1000000000" step="1" inputmode="numeric" placeholder="Local price per gram">
+                    </div>
+                    <div id="zakatCustomNisabField" hidden>
+                        <label class="label" for="zakatCustomNisab">Local nisab amount</label>
+                        <input id="zakatCustomNisab" type="number" min="0" max="1000000000" step="1" inputmode="numeric" placeholder="Nisab in MRU">
+                    </div>
+                    <label class="zakat-hawl-check">
+                        <input id="zakatHawlComplete" type="checkbox">
+                        I have held at least the nisab for one lunar year (hawl)
+                    </label>
+                    <button id="calculateZakatButton" class="primary-button" type="button">Calculate Zakat</button>
+                </div>
+                <div id="zakatResult" class="zakat-result" role="status" aria-live="polite">Enter your nisab basis and confirm the hawl to calculate.</div>
+                <details class="zakat-rules">
+                    <summary>Key Zakat rules</summary>
+                    <ul>
+                        <li>Zakat on qualifying monetary savings is commonly calculated at 2.5%, or one fortieth.</li>
+                        <li>Nisab is commonly valued at 85 grams of gold or 595 grams of silver. Use the basis advised for you.</li>
+                        <li>The hawl is one lunar year above nisab. If you have not completed it, Zakat is generally not due yet.</li>
+                        <li>Debt treatment differs by scholarly opinion. Enter only immediate eligible debts after seeking guidance.</li>
+                        <li>Use the price and currency for your local market on the date you calculate.</li>
+                    </ul>
+                </details>
+            </div>
+        </details>
+
+    <section class="card savings-funding-card">
         <h2>Fund this month's savings</h2>
         <div class="label" id="savingsFundHint">
             Send this month's $ assignment from your main bank to Masrvi.
@@ -420,7 +499,7 @@
         </button>
     </section>
 
-    <section class="card">
+    <section class="card savings-goal-card">
         <h2>Savings goal</h2>
         <div class="label" id="savingsGoalHint">Set a target amount to track your progress and see when you'll reach it.</div>
         <div id="savingsGoalProgressWrap" hidden>
@@ -437,9 +516,9 @@
         </div>
     </section>
 
-    <section class="card">
+    <section class="card savings-projection-card">
         <h2>Projections</h2>
-        <div class="label">If you keep saving at your current monthly pace:</div>
+        <div id="savingsProjectionBasis" class="label">Based on your current savings balance and monthly pace.</div>
         <div class="summary-grid" style="margin-top:12px;">
             <div class="summary-box">
                 <div class="label">In 6 months</div>
@@ -454,9 +533,21 @@
                 <div id="savingsProjection60" class="summary-value">0 MRU</div>
             </div>
         </div>
+        <div id="savingsProjectionTarget" class="projection-target" role="status"></div>
     </section>
 
-    <section class="card">
+    <section class="card savings-goals-overview">
+        <div class="section-heading">
+            <div>
+                <h2>All savings goals</h2>
+                <div class="label">Keep every goal visible in one place.</div>
+            </div>
+            <button class="text-button" type="button" onclick="showPage('settingsGoalsPage')">Manage</button>
+        </div>
+        <div id="savingsGoalsOverview"></div>
+    </section>
+
+    <section class="card savings-history-card">
         <h2>Savings history</h2>
         <div id="savingsHistoryList" class="calendar-activity-list"></div>
     </section>
@@ -472,8 +563,13 @@
         ← Home
     </button>
 
-    <section class="card" style="margin-top:16px;">
-        <h2>Monthly Assignments</h2>
+    <div class="page-header">
+        <h1>Monthly Assignments</h1>
+        <p>Fund and track M, S, T, C, P, and savings</p>
+    </div>
+
+    <section class="card assignments-overview-card" style="margin-top:0;">
+        <h2>Summary</h2>
         <div id="assignmentsPageSummary" class="assignments-summary"></div>
         <div id="assignmentsPageReminder" class="transfer-needed" role="status" hidden>
             BM.S received. Review and send your monthly assignments below:
@@ -493,9 +589,14 @@
         ← Home
     </button>
 
-    <section class="card spending-summary-card" style="margin-top:16px;">
+    <div class="page-header">
+        <h1>Daily Spending</h1>
+        <p>Record today's expenses and track your spending</p>
+    </div>
 
-        <h2>Today's Spending</h2>
+    <section class="card spending-summary-card" style="margin-top:0;">
+
+        <h2>Summary</h2>
 
         <div class="spending-summary-row">
             <div class="spending-summary-block">
@@ -517,7 +618,24 @@
 
     </section>
 
-    <section class="card" style="margin-top:16px;">
+    <section class="card bills-home-card bills-spending-card">
+        <div class="section-heading">
+            <div>
+                <h2>Upcoming bills</h2>
+                <div class="label">Stay ahead of due dates and payment reminders.</div>
+            </div>
+        </div>
+        <button type="button" class="assignments-entry-card" onclick="showPage('settingsBillsPage')">
+            <span class="savings-entry-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M6 3H18V21L15.5 19L13 21L10.5 19L8 21L5.5 19L6 21V3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.5 8H15.5M8.5 11.5H15.5M8.5 15H13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+            <span class="savings-entry-text">
+                <span class="savings-entry-title">View upcoming bills</span>
+                <span id="homeBillsSummary" class="savings-entry-sub">No bills yet</span>
+            </span>
+            <span class="settings-menu-chevron" aria-hidden="true">›</span>
+        </button>
+    </section>
+
+    <section class="card spending-entry-card" style="margin-top:16px;">
 
         <h2>Add Expense</h2>
 
@@ -558,7 +676,12 @@
         ← Home
     </button>
 
-    <section class="card calendar-summary-card" style="margin-top:16px;">
+    <div class="page-header">
+        <h1>Monthly Activity</h1>
+        <p>View all transactions and daily spending patterns</p>
+    </div>
+
+    <section class="card calendar-summary-card" style="margin-top:0;">
 
         <div class="calendar-heading">
             <div>
@@ -607,7 +730,7 @@
         <div id="calendarDayDetail" class="calendar-day-detail" hidden></div>
     </section>
 
-    <section class="card">
+    <section class="card calendar-activity-card">
         <div class="calendar-view-switch" role="tablist" aria-label="Monthly activity views">
             <button
                 id="calendarActivityTab"
@@ -637,7 +760,7 @@
         <div id="calendarDetails" class="calendar-details" hidden></div>
     </section>
 
-    <section class="card">
+    <section class="card calendar-history-card">
         <h2>Transaction history</h2>
         <div class="history-filters">
             <input id="historySearch" type="search" placeholder="Search transactions">
@@ -689,6 +812,16 @@
                 aria-label="Income and spending chart"></canvas>
             <canvas id="assignmentChart" class="chart-canvas" height="190"
                 aria-label="Assignment planned versus spent chart"></canvas>
+            <div class="trend-controls">
+                <label class="label" for="trendRange">Spending comparison</label>
+                <select id="trendRange">
+                    <option value="1">Previous month</option>
+                    <option value="3">Previous 3 months</option>
+                    <option value="6">Previous 6 months</option>
+                    <option value="12">Previous 12 months</option>
+                </select>
+                <div id="trendSummary" class="trend-summary" role="status"></div>
+            </div>
             <canvas id="trendChart" class="chart-canvas" height="190"
                 aria-label="Spending trend versus last month by category"></canvas>
         </div>
@@ -749,6 +882,7 @@
     </section>
 
     <section class="card settings-menu">
+        <div class="settings-menu-section-label">Preferences</div>
         <button class="settings-menu-row" type="button" onclick="showPage('settingsAppearancePage')">
             <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M12 3.5A8.5 8.5 0 0 0 12 20.5C10.5 18 10.5 6 12 3.5Z" stroke="currentColor" stroke-width="1.4"/></svg></span>
             <span class="settings-menu-text">
@@ -773,6 +907,7 @@
             </span>
             <span class="settings-menu-chevron" aria-hidden="true">›</span>
         </button>
+        <div class="settings-menu-section-label">Data &amp; protection</div>
         <button class="settings-menu-row" type="button" onclick="showPage('settingsBackupPage')">
             <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M12 4V14M12 14L8.5 10.5M12 14L15.5 10.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 16V18.5A1.5 1.5 0 0 0 6.5 20H17.5A1.5 1.5 0 0 0 19 18.5V16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
             <span class="settings-menu-text">
@@ -789,7 +924,7 @@
             </span>
             <span class="settings-menu-chevron" aria-hidden="true">›</span>
         </button>
-        <button class="settings-menu-row" type="button" onclick="showPage('settingsLanguagePage')">
+        <button id="languageSettingsRow" class="settings-menu-row" type="button" onclick="showPage('settingsLanguagePage')" hidden>
             <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 12H20.5M12 3.5C14.2 6 15.3 9 15.3 12C15.3 15 14.2 18 12 20.5C9.8 18 8.7 15 8.7 12C8.7 9 9.8 6 12 3.5Z" stroke="currentColor" stroke-width="1.4"/></svg></span>
             <span class="settings-menu-text">
                 <span class="settings-menu-title" data-i18n="Language">Language</span>
@@ -805,11 +940,20 @@
             </span>
             <span class="settings-menu-chevron" aria-hidden="true">›</span>
         </button>
+        <div class="settings-menu-section-label">Planning</div>
         <button class="settings-menu-row" type="button" onclick="showPage('settingsBillsPage')">
             <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><rect x="3.5" y="5" width="17" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M7 3.5V7M17 3.5V7M3.5 9H20.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
             <span class="settings-menu-text">
                 <span class="settings-menu-title">Bills &amp; payment reminders</span>
                 <span class="settings-menu-sub" id="settingsBillsSummary">No bills yet</span>
+            </span>
+            <span class="settings-menu-chevron" aria-hidden="true">›</span>
+        </button>
+        <button class="settings-menu-row" type="button" onclick="showPage('settingsIslamicPage')">
+            <span class="settings-menu-icon" aria-hidden="true">☪</span>
+            <span class="settings-menu-text">
+                <span class="settings-menu-title">Islamic finance guide</span>
+                <span class="settings-menu-sub">Zakat, savings, debt and ethical planning</span>
             </span>
             <span class="settings-menu-chevron" aria-hidden="true">›</span>
         </button>
@@ -849,6 +993,7 @@
     </details>
 
     <section class="card settings-menu">
+        <div class="settings-menu-section-label">App</div>
         <button class="settings-menu-row" type="button" onclick="showPage('settingsAboutPage')">
             <span class="settings-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="8.3" r="1" fill="currentColor"/><path d="M12 11.5V16.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
             <span class="settings-menu-text">
@@ -892,7 +1037,7 @@
     <section class="card settings-section">
         <div class="settings-section-heading">
             <span class="settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M11 4L20 4V13L12 21L3 12L11 4Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"/></svg></span>
-            <div><h2>Categories</h2><div class="label">Rename your monthly assignment categories. Leave blank to restore the default name.</div></div>
+            <div><h2>Categories</h2><div class="label">Rename categories and choose a symbol and color for quick recognition.</div></div>
         </div>
         <div id="categoryNameFields" class="category-name-fields"></div>
         <button id="saveCategoryNamesButton" class="primary-button" type="button">Save names</button>
@@ -928,24 +1073,31 @@
             </span>
             <input id="notifyBackupToggle" type="checkbox">
         </label>
+        <label class="notification-toggle-row">
+            <span>
+                <span class="settings-menu-title">Action sounds</span>
+                <span class="label">Play a quiet confirmation sound after successful actions.</span>
+            </span>
+            <input id="actionSoundsToggle" type="checkbox">
+        </label>
     </section>
 </div>
 
 <!-- ================= SETTINGS: About ================= -->
 <div id="settingsAboutPage" class="page">
     <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
-    <section class="card settings-section">
+    <section class="card settings-section" aria-labelledby="aboutTitle">
         <div class="settings-intro" style="padding-bottom:0;">
             <div class="page-header">
                 <div class="settings-placeholder-icon" aria-hidden="true">
-                    <img src="png/ItOumrou-Icon.png" alt="ItOumrou" style="width:56px;height:56px;">
+                    <img src="png/ItOumrou-Icon.png" alt="It$umrou" style="width:56px;height:56px;">
                 </div>
-                <h2>It$umrou</h2>
-                <p>Version 1.0 · A private, on-device money organizer.</p>
+                <h2 id="aboutTitle">It$umrou</h2>
+                <p>Version 1.0 · A personal, on-device money organizer.</p>
             </div>
         </div>
-        <div class="label settings-help">All your data stays in this browser's local storage. Nothing is uploaded to any server.</div>
-        <div class="label settings-help">Made for tracking income, monthly assignments, daily spending, bills and bank balances.</div>
+        <p class="label settings-help">Your data stays in this browser unless you export it. Local storage is not encrypted, and the optional PIN is not full device security.</p>
+        <p class="label settings-help">Made for tracking income, monthly assignments, daily spending, bills and bank balances.</p>
     </section>
 </div>
 
@@ -972,13 +1124,14 @@
         </div>
         <div class="settings-actions">
             <button id="exportDataButton" class="secondary-button" type="button">Download Backup</button>
-            <label class="secondary-button settings-file-button" for="importDataInput">Restore Backup</label>
+            <button id="exportEncryptedDataButton" class="secondary-button" type="button">Download encrypted backup</button>
+            <label class="secondary-button settings-file-button" for="importDataInput">Merge Backup</label>
             <input id="importDataInput" type="file" accept="application/json" hidden>
             <div id="restorePreview" class="restore-preview" hidden>
                 <strong>Restore preview</strong>
                 <div id="restorePreviewText" class="label"></div>
                 <div class="restore-actions">
-                    <button id="confirmRestoreButton" class="primary-button" type="button">Restore this backup</button>
+                    <button id="confirmRestoreButton" class="primary-button" type="button">Merge this backup</button>
                     <button id="cancelRestoreButton" class="secondary-button" type="button">Cancel</button>
                 </div>
             </div>
@@ -991,6 +1144,7 @@
             <option value="never">Never</option>
         </select>
         <div id="backupIntegrityStatus" class="label settings-help" role="status"></div>
+        <div id="backupContentsSummary" class="backup-contents-summary" role="status"></div>
         <div class="label settings-help">The reminder stays inside the app; your data is never uploaded.</div>
     </section>
 </div>
@@ -1020,11 +1174,41 @@
             <div><h2 data-i18n="Language">Language</h2><div class="label" data-i18n="Choose the language used throughout the app.">Choose the language used throughout the app.</div></div>
         </div>
         <label class="label" for="languageSelect" data-i18n="App language">App language</label>
-        <select id="languageSelect" class="settings-select" aria-label="Language">
+        <select id="languageSelect" class="settings-select" aria-label="Language" disabled>
             <option value="en">English</option>
-            <option value="fr">Français</option>
-            <option value="ar">العربية</option>
         </select>
+    </section>
+</div>
+
+<!-- ================= SETTINGS: Islamic finance ================= -->
+<div id="settingsIslamicPage" class="page">
+    <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
+    <section class="card settings-section islamic-guide">
+        <div class="settings-section-heading">
+            <span class="settings-section-icon" aria-hidden="true">☪</span>
+            <div><h2>Islamic finance guide</h2><div class="label">Practical reminders for organizing money in line with Islamic principles.</div></div>
+        </div>
+        <div class="islamic-disclaimer">This guide is educational, not a fatwa. Details can differ between schools of thought and local scholars, so ask a trusted qualified scholar for a personal ruling.</div>
+        <details class="islamic-topic" open>
+            <summary>Zakat al-mal</summary>
+            <p>Qualifying monetary savings are commonly subject to 2.5% Zakat after reaching nisab and remaining above it for one lunar year (hawl). Use the Zakat calculator on the Savings page.</p>
+        </details>
+        <details class="islamic-topic">
+            <summary>Nisab</summary>
+            <p>Nisab is commonly valued using 85 grams of gold or 595 grams of silver. The value changes with the local market, so use a current local price and follow the basis advised for you.</p>
+        </details>
+        <details class="islamic-topic">
+            <summary>Debt and obligations</summary>
+            <p>Debt treatment can differ. The calculator allows immediate eligible debts to be entered, but only include debts your trusted scholar considers deductible.</p>
+        </details>
+        <details class="islamic-topic">
+            <summary>Riba and ethical money</summary>
+            <p>Riba generally refers to prohibited interest or unjustified increase in lending. Avoid interest-based arrangements where possible and seek qualified advice for contracts, loans, and accounts.</p>
+        </details>
+        <details class="islamic-topic">
+            <summary>Sadaqah and responsible planning</summary>
+            <p>Sadaqah is voluntary charity. Planning a regular amount, meeting essential needs, paying obligations, and avoiding waste can help turn a budget into a responsible financial habit.</p>
+        </details>
     </section>
 </div>
 
@@ -1049,12 +1233,20 @@
 <!-- ================= SETTINGS: Bills ================= -->
 <div id="settingsBillsPage" class="page">
     <button class="back-button" onclick="showPage('homePage')">← Home</button>
-    <section class="card settings-section">
+    <section class="card settings-section bills-manager-card">
         <div class="settings-section-heading">
             <span class="settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="22" height="22"><rect x="3.5" y="5" width="17" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M7 3.5V7M17 3.5V7M3.5 9H20.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
-            <div><h2>Bills &amp; payment reminders</h2><div class="label">Add recurring bills once and get an in-app reminder before they are due. Marking a bill paid only clears its reminder; record spending separately.</div></div>
+            <div><h2>Bills &amp; payment reminders</h2><div class="label">Keep this month's bills organized by due date, status, and payment account. New bills repeat next month automatically.</div></div>
         </div>
-        <div class="bill-form">
+        <div class="bill-planning-note"><strong>This month</strong> shows the bills you need to handle now. <strong>Next month</strong> will include new bills automatically, and removed default bills return then.</div>
+        <div class="bill-overview" aria-label="Bill summary">
+            <div class="bill-stat bill-stat-total"><span>Total this month</span><strong id="billOverviewTotal">0</strong><small id="billOverviewTotalHint">0 bills</small></div>
+            <div class="bill-stat bill-stat-unpaid"><span>Still to pay</span><strong id="billOverviewUnpaid">0</strong><small id="billOverviewUnpaidHint">0 unpaid</small></div>
+            <div class="bill-stat bill-stat-next"><span>Next due</span><strong id="billOverviewNext">—</strong><small id="billOverviewNextHint">Nothing scheduled</small></div>
+        </div>
+        <div class="bill-add-panel">
+            <div class="bill-panel-heading"><div><h3>Add a bill</h3><div class="label">It will repeat automatically next month.</div></div><span class="bill-panel-mark">+</span></div>
+            <div class="bill-form">
             <label class="label" for="billName">Bill name</label>
             <input id="billName" type="text" maxlength="100" placeholder="Rent, electricity, subscription" autocomplete="off">
             <label class="label" for="billAmount">Amount</label>
@@ -1068,27 +1260,25 @@
             </select>
             <label class="label" for="billReminderDays">Remind me this many days before</label>
             <input id="billReminderDays" type="number" min="0" max="30" step="1" value="3" inputmode="numeric">
-            <button id="addBillButton" class="primary-button" type="button">Add bill</button>
+            <div class="bill-form-actions">
+                <button id="addBillButton" class="primary-button" type="button">Add bill</button>
+                <button id="cancelBillEditButton" class="secondary-button" type="button" hidden>Cancel edit</button>
+            </div>
+            </div>
         </div>
-        <div class="bill-filters">
+        <div class="bill-list-heading">
+            <div><h3>Your bills</h3><div class="label">Grouped by what needs your attention first.</div></div>
+            <span id="billListCount" class="bill-list-count">0 bills</span>
+        </div>
+        <div class="bill-filters" aria-label="Bill filters">
             <select id="billFilterBank" aria-label="Filter by bank">
-                <option value="all">All banks</option>
-                <option value="Bankily">Bankily</option>
-                <option value="Click">Click</option>
-                <option value="Sedad">Sedad</option>
-                <option value="Masrvi">Masrvi</option>
+                <option value="all">All banks</option><option value="Bankily">Bankily</option><option value="Click">Click</option><option value="Sedad">Sedad</option><option value="Masrvi">Masrvi</option>
             </select>
             <select id="billFilterStatus" aria-label="Filter by status">
-                <option value="all">All statuses</option>
-                <option value="unpaid">Unpaid</option>
-                <option value="overdue">Overdue</option>
-                <option value="paid">Paid</option>
+                <option value="all">All statuses</option><option value="unpaid">Unpaid</option><option value="overdue">Overdue</option><option value="paid">Paid</option>
             </select>
             <select id="billSortOrder" aria-label="Sort bills">
-                <option value="dueDate">Sort by due date</option>
-                <option value="amountDesc">Amount: high to low</option>
-                <option value="amountAsc">Amount: low to high</option>
-                <option value="name">Name (A–Z)</option>
+                <option value="dueDate">Sort by due date</option><option value="amountDesc">Amount: high to low</option><option value="amountAsc">Amount: low to high</option><option value="name">Name (A–Z)</option>
             </select>
         </div>
         <div id="billsList"></div>
@@ -1133,7 +1323,7 @@
 
 <!-- ================= SETTINGS: Savings goals ================= -->
 <div id="settingsGoalsPage" class="page">
-    <button class="back-button" onclick="showPage('settingsPage')">← Settings</button>
+    <button class="back-button" onclick="showPage('savingsPage')">← Savings</button>
     <section class="card">
         <h2 data-i18n="Savings goals">Savings goals</h2>
         <div class="label" data-i18n="Track progress toward the things you want to buy or build.">
@@ -1143,6 +1333,7 @@
             <input id="goalName" type="text" maxlength="80" placeholder="Goal name">
             <input id="goalTarget" type="number" min="1" max="1000000000" step="1" placeholder="Target amount">
             <input id="goalSaved" type="number" min="0" max="1000000000" step="1" placeholder="Already saved">
+            <input id="goalMonthly" type="number" min="0" max="1000000000" step="1" placeholder="Monthly pace (optional)">
             <button id="addGoalButton" class="primary-button" type="button" data-i18n="Add savings goal">Add savings goal</button>
         </div>
         <div id="savingsGoalsList"></div>
@@ -1273,6 +1464,17 @@
         </svg>
     </button>
 
+    <button class="nav-item" aria-label="Savings" title="Savings" data-page="savingsPage" onclick="showPage('savingsPage')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+            <path d="M4 12.5C4 9 7.5 6.5 12 6.5C15 6.5 17.2 7.6 18.4 9H20.5L19 11.2C19.4 11.9 19.6 12.7 19.6 13.5C19.6 16.5 16.2 18.5 12 18.5C7.5 18.5 4 16 4 12.5Z"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linejoin="round"/>
+            <circle cx="9" cy="12" r="0.8" fill="currentColor"/>
+            <path d="M9 6.5V4.5M6.5 7.5L5.2 6M9 18V20.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+    </button>
+
     <button class="nav-item" aria-label="Calendar" title="Calendar" data-page="calendarPage" onclick="showPage('calendarPage')">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
             <rect x="3.5" y="5" width="17" height="16"
@@ -1305,7 +1507,7 @@
 </nav>
 
 
-    <script src="js/app.js?v=20260903-2336"></script>
+    <script src="js/app.js?v=20260905-1300"></script>
 
 <script>
 if ("serviceWorker" in navigator) {

@@ -15,13 +15,17 @@ const RECURRING_INCOME_KEY = "itoumrou_recurring_income";
 const SAVINGS_GOALS_KEY = "itoumrou_savings_goals";
 const LANGUAGE_KEY = "itoumrou_language";
 const PIN_KEY = "itoumrou_pin_hash";
+const PIN_ATTEMPTS_KEY = "itoumrou_pin_attempts";
 const UNDO_KEY = "itoumrou_undo_snapshot";
 const BILLS_KEY = "itoumrou_bills";
+const BILLS_DISMISSED_KEY = "itoumrou_bills_dismissed";
+const DEFAULT_BILL_BANKS_KEY = "itoumrou_default_bill_banks";
 const SETUP_KEY = "itoumrou_setup_complete";
 const BACKUP_LAST_KEY = "itoumrou_last_backup_at";
 const BACKUP_INTERVAL_KEY = "itoumrou_backup_interval_days";
 const BACKUP_SNOOZE_KEY = "itoumrou_backup_reminder_snoozed_until";
 const BACKUP_FORMAT = "itoumrou-backup";
+const ENCRYPTED_BACKUP_FORMAT = "itoumrou-encrypted-backup";
 const BACKUP_VERSION = 2;
 const CLOSE_HISTORY_KEY = "itoumrou_month_close_history";
 const AUDIT_LAST_KEY = "itoumrou_last_audit";
@@ -29,8 +33,10 @@ const AUDIT_LOG_KEY = "itoumrou_audit_log";
 const BALANCE_CHECK_KEY = "itoumrou_balance_reconciliations";
 const THEME_KEY = "itoumrou_theme";
 const CATEGORY_NAMES_KEY = "itoumrou_category_names";
+const CATEGORY_STYLES_KEY = "itoumrou_category_styles";
 const NOTIFICATION_PREFS_KEY = "itoumrou_notification_prefs";
 const SAVINGS_TARGET_KEY = "itoumrou_savings_target";
+const ZAKAT_PREFS_KEY = "itoumrou_zakat_preferences";
 const MAX_AMOUNT = 1000000000;
 let pendingRestore = null;
 
@@ -181,8 +187,7 @@ const TRANSLATIONS = {
 };
 
 function currentLanguage() {
-    const language = localStorage.getItem(LANGUAGE_KEY) || "en";
-    return ["en", "fr", "ar"].includes(language) ? language : "en";
+    return "en";
 }
 
 function applyLanguage() {
@@ -231,10 +236,7 @@ function applyLanguage() {
 }
 
 function setLanguage(language) {
-    if (!["en", "fr", "ar"].includes(language)) {
-        language = "en";
-    }
-    localStorage.setItem(LANGUAGE_KEY, language);
+    localStorage.setItem(LANGUAGE_KEY, "en");
     applyLanguage();
     populateMonthOptions();
     loadMonth();
@@ -272,9 +274,67 @@ function loadNotificationPrefs() {
     return {
         bills: prefs.bills !== false,
         dailySpending: prefs.dailySpending !== false,
-        backup: prefs.backup !== false
+        backup: prefs.backup !== false,
+        actionSounds: prefs.actionSounds === true
     };
 }
+
+let audioContext = null;
+
+function playActionSound(kind) {
+    if (!loadNotificationPrefs().actionSounds ||
+        (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) {
+        return;
+    }
+    try {
+        audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+        const notes = kind === "error"
+            ? [{ frequency: 180, delay: 0, duration: 0.16 }]
+            : kind === "transaction"
+                ? [{ frequency: 520, delay: 0, duration: 0.13 }, { frequency: 740, delay: 0.08, duration: 0.18 }]
+                : [{ frequency: 420, delay: 0, duration: 0.11 }, { frequency: 630, delay: 0.07, duration: 0.16 }, { frequency: 840, delay: 0.14, duration: 0.2 }];
+        const playNotes = () => {
+            const now = audioContext.currentTime;
+            notes.forEach(note => {
+                const oscillator = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                const start = now + note.delay;
+                oscillator.type = kind === "error" ? "sine" : "triangle";
+                oscillator.frequency.setValueAtTime(note.frequency, start);
+                gain.gain.setValueAtTime(0.0001, start);
+                gain.gain.exponentialRampToValueAtTime(kind === "error" ? 0.03 : 0.05, start + 0.012);
+                gain.gain.exponentialRampToValueAtTime(0.0001, start + note.duration);
+                oscillator.connect(gain);
+                gain.connect(audioContext.destination);
+                oscillator.start(start);
+                oscillator.stop(start + note.duration + 0.01);
+            });
+        };
+        if (audioContext.state === "suspended") {
+            audioContext.resume().then(playNotes).catch(() => {
+                audioContext = null;
+            });
+        } else {
+            playNotes();
+        }
+    } catch {
+        audioContext = null;
+    }
+}
+
+document.addEventListener("pointerdown", () => {
+    if (!loadNotificationPrefs().actionSounds) {
+        return;
+    }
+    try {
+        audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === "suspended") {
+            audioContext.resume();
+        }
+    } catch {
+        audioContext = null;
+    }
+}, { passive: true });
 
 function setNotificationPref(key, enabled) {
     const prefs = loadNotificationPrefs();
@@ -328,12 +388,88 @@ function collectLocalStorageData() {
     const data = {};
     for (let index = 0; index < localStorage.length; index += 1) {
         const key = localStorage.key(index);
-        if (key) {
+        if (key && key !== PIN_KEY) {
             data[key] = localStorage.getItem(key);
         }
 
     }
     return data;
+}
+
+function bytesToBase64(bytes) {
+    let binary = "";
+    bytes.forEach(byte => binary += String.fromCharCode(byte));
+    return btoa(binary);
+}
+
+function base64ToBytes(value) {
+    const binary = atob(value);
+    return Uint8Array.from(binary, character => character.charCodeAt(0));
+}
+
+async function deriveBackupKey(password, salt) {
+    const material = await window.crypto.subtle.importKey(
+        "raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+    return window.crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt: salt, iterations: 150000, hash: "SHA-256" },
+        material, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+
+async function exportEncryptedAppData() {
+    if (!window.crypto?.subtle || !window.TextEncoder) {
+        alert("Encrypted backups are not supported by this browser.");
+        return;
+    }
+    const password = prompt("Create a password for this encrypted backup:");
+    if (!password || password.length < 8) {
+        alert("Use a backup password with at least 8 characters.");
+        return;
+    }
+    const exportedAt = new Date().toISOString();
+    const data = collectLocalStorageData();
+    const inner = {
+        format: BACKUP_FORMAT,
+        version: BACKUP_VERSION,
+        exportedAt: exportedAt,
+        data: data
+    };
+    inner.checksum = await calculateBackupChecksum(inner.version, exportedAt, data);
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await deriveBackupKey(password, salt);
+    const encrypted = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: iv }, key, new TextEncoder().encode(JSON.stringify(inner)));
+    const backup = {
+        format: ENCRYPTED_BACKUP_FORMAT,
+        version: BACKUP_VERSION,
+        exportedAt: exportedAt,
+        salt: bytesToBase64(salt),
+        iv: bytesToBase64(iv),
+        ciphertext: bytesToBase64(new Uint8Array(encrypted))
+    };
+    localStorage.setItem(BACKUP_LAST_KEY, exportedAt);
+    localStorage.removeItem(BACKUP_SNOOZE_KEY);
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "itoumrou-encrypted-backup-" + todayKey() + "-v" + BACKUP_VERSION + ".json";
+    link.click();
+    URL.revokeObjectURL(url);
+    checkBackupReminder();
+    setMessage("Encrypted backup downloaded.");
+    appendAuditEvent("encrypted_backup_exported", { version: BACKUP_VERSION, itemCount: Object.keys(data).length });
+}
+
+async function decryptBackupPayload(payload, password) {
+    if (!payload || payload.format !== ENCRYPTED_BACKUP_FORMAT ||
+        !payload.salt || !payload.iv || !payload.ciphertext || !window.crypto?.subtle) {
+        return null;
+    }
+    const key = await deriveBackupKey(password, base64ToBytes(payload.salt));
+    const decrypted = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: base64ToBytes(payload.iv) }, key, base64ToBytes(payload.ciphertext));
+    return JSON.parse(new TextDecoder().decode(decrypted));
 }
 
 async function exportAppData() {
@@ -397,6 +533,16 @@ async function importAppData(file) {
         alert("This backup file is not valid JSON.");
         return;
     }
+    if (payload.format === ENCRYPTED_BACKUP_FORMAT) {
+        const password = prompt("Enter the password for this encrypted backup:");
+        if (!password) return;
+        try {
+            payload = await decryptBackupPayload(payload, password);
+        } catch {
+            alert("The password was incorrect or this encrypted backup is damaged.");
+            return;
+        }
+    }
     const parsed = parseBackupPayload(payload);
     if (!parsed) {
         alert("This backup file has no restorable It$umrou data.");
@@ -417,7 +563,7 @@ async function importAppData(file) {
     if (preview && text) {
         text.textContent = parsed.version + " · " + parsed.exportedAt + " · " +
             Object.keys(parsed.data).length + " data items · " + integrity +
-            ". Existing data will be replaced for matching keys.";
+            ". Matching keys will be replaced; other existing data will be preserved.";
         preview.hidden = false;
     }
 }
@@ -448,7 +594,7 @@ function confirmRestore() {
         version: version,
         itemCount: Object.keys(data).length
     });
-    alert("Backup restored successfully. Your existing data was preserved for keys not in the backup.");
+    alert("Backup merged successfully. Matching keys were replaced; other existing data was preserved.");
 }
 
 async function hashSecret(value) {
@@ -493,8 +639,20 @@ async function unlockApp() {
     const input = document.getElementById("unlockPinInput");
     const error = document.getElementById("unlockError");
     const stored = localStorage.getItem(PIN_KEY);
+    let attempts = {};
+    try {
+        attempts = JSON.parse(sessionStorage.getItem(PIN_ATTEMPTS_KEY) || "{}");
+    } catch {
+        attempts = {};
+    }
+    if (Number(attempts.lockedUntil) > Date.now()) {
+        const seconds = Math.ceil((attempts.lockedUntil - Date.now()) / 1000);
+        if (error) error.textContent = "Too many attempts. Try again in " + seconds + " seconds.";
+        return;
+    }
     if (!stored || (await hashSecret(input.value)) === stored) {
         sessionStorage.setItem("itoumrou_unlocked", "true");
+        sessionStorage.removeItem(PIN_ATTEMPTS_KEY);
         if (error) {
             error.textContent = "";
         }
@@ -502,7 +660,15 @@ async function unlockApp() {
         return;
     }
     if (error) {
-        error.textContent = "Incorrect PIN or password.";
+        attempts.count = Number(attempts.count) + 1;
+        if (attempts.count >= 5) {
+            attempts.lockedUntil = Date.now() + 30000;
+            attempts.count = 0;
+            error.textContent = "Too many attempts. Try again in 30 seconds.";
+        } else {
+            error.textContent = "Incorrect PIN or password.";
+        }
+        sessionStorage.setItem(PIN_ATTEMPTS_KEY, JSON.stringify(attempts));
     }
     input.select();
 }
@@ -575,74 +741,23 @@ function cleanupStaleGeneratedBills() {
     }
 }
 function repairExistingSavingsTransfer() {
-
-    const repairKey =
-        "itoumrou_existing_savings_repaired";
-
-    if (
-        localStorage.getItem(repairKey)
-    ) {
+    const legacyRepairKey = "itoumrou_existing_savings_repaired";
+    if (!localStorage.getItem(legacyRepairKey)) {
         return;
     }
-
-    const ledger =
-        loadLedger();
-
-    const alreadyExists =
-        ledger.some(transaction =>
-            transaction.type === "internal_transfer" &&
+    const cleaned = loadLedger().filter(transaction =>
+        !(transaction.type === "internal_transfer" &&
             transaction.category === "$" &&
-            transaction.amount === 5000 &&
+            Number(transaction.amount) === 5000 &&
             transaction.from === "Bankily" &&
-            transaction.to === "Masrvi"
-        );
-
-    if (!alreadyExists) {
-
-        ledger.push({
-
-            id:
-                Date.now() +
-                Math.random(),
-
-            date:
-                todayKey(),
-
-            month:
-                "2026-09",
-
-            type:
-                "internal_transfer",
-
-            amount:
-                5000,
-
-            category:
-                "$",
-
-            description:
-                "Savings",
-
-            bank:
-                null,
-
-            from:
-                "Bankily",
-
-            to:
-                "Masrvi"
-
-        });
-
-        saveLedger(ledger);
-
+            transaction.to === "Masrvi" &&
+            transaction.description === "Savings" &&
+            !transaction.transferKind &&
+            transaction.month === "2026-09"));
+    if (cleaned.length !== loadLedger().length) {
+        saveLedger(cleaned);
     }
-
-    localStorage.setItem(
-        repairKey,
-        "true"
-    );
-
+    localStorage.removeItem(legacyRepairKey);
 }
 
 function loadLedger() {
@@ -675,6 +790,7 @@ function addLedgerTransaction(transaction) {
         month: transaction.month || monthKey(),
         type: transaction.type,
         amount: Math.round(Number(transaction.amount) || 0),
+        createdAt: transaction.createdAt || new Date().toISOString(),
         category: transaction.category || null,
         description: transaction.description || "",
         bank: transaction.bank || null,
@@ -726,6 +842,15 @@ const DEFAULT_CATEGORY_NAMES = {
     P: "Personal needs"
 };
 
+const DEFAULT_CATEGORY_STYLES = {
+    M: { icon: "M", color: "#e59f42" },
+    S: { icon: "S", color: "#32a852" },
+    $: { icon: "$", color: "#16b866" },
+    T: { icon: "T", color: "#4b8fd8" },
+    C: { icon: "C", color: "#d66a5c" },
+    P: { icon: "P", color: "#8b6fd8" }
+};
+
 const CATEGORY_NAMES = { ...DEFAULT_CATEGORY_NAMES };
 
 function loadCustomCategoryNames() {
@@ -755,6 +880,37 @@ function saveCategoryName(category, name) {
     applyCustomCategoryNames();
 }
 
+function loadCategoryStyles() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(CATEGORY_STYLES_KEY) || "{}");
+        return Object.keys(DEFAULT_CATEGORY_STYLES).reduce((styles, category) => {
+            const value = saved[category] || {};
+            styles[category] = {
+                icon: String(value.icon || DEFAULT_CATEGORY_STYLES[category].icon).slice(0, 2),
+                color: /^#[0-9a-f]{6}$/i.test(value.color) ? value.color : DEFAULT_CATEGORY_STYLES[category].color
+            };
+            return styles;
+        }, {});
+    } catch {
+        return { ...DEFAULT_CATEGORY_STYLES };
+    }
+}
+
+function categoryStyle(category) {
+    return loadCategoryStyles()[category] || DEFAULT_CATEGORY_STYLES[category] || { icon: category, color: "#16b866" };
+}
+
+function saveCategoryStyles() {
+    const styles = loadCategoryStyles();
+    Object.keys(DEFAULT_CATEGORY_STYLES).forEach(category => {
+        const icon = document.getElementById("categoryIcon_" + category)?.value.trim();
+        const color = document.getElementById("categoryColor_" + category)?.value;
+        if (icon) styles[category].icon = icon.slice(0, 2);
+        if (/^#[0-9a-f]{6}$/i.test(color || "")) styles[category].color = color;
+    });
+    localStorage.setItem(CATEGORY_STYLES_KEY, JSON.stringify(styles));
+}
+
 const DEFAULT_CATEGORIES = {
     M: 5000,
     S: 1000,
@@ -763,6 +919,8 @@ const DEFAULT_CATEGORIES = {
     C: 3000,
     P: 2000
 };
+
+const DAILY_SPEND_CATEGORIES = ["P", "C", "T"];
 
 let selectedBank = null;
 let currentDetailBank = null;
@@ -773,7 +931,43 @@ function setMessage(text) {
     const message = document.getElementById("message");
     if (message) {
         message.textContent = text || "";
+        if (text) {
+            message.classList.remove("message-pop");
+            void message.offsetWidth;
+            message.classList.add("message-pop");
+            playActionSound(/saved|recorded|added|updated|paid|funded|confirmed|undone/i.test(text)
+                ? "transaction" : "success");
+            if (/saved|recorded|added|updated|paid|funded|confirmed/i.test(text)) {
+                triggerCelebration();
+            }
+        }
     }
+}
+
+function triggerCelebration() {
+    const layer = document.getElementById("fxLayer");
+    if (!layer || (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) {
+        return;
+    }
+    layer.innerHTML = "";
+    const burst = document.createElement("span");
+    burst.className = "fx-burst";
+    layer.appendChild(burst);
+    const colors = ["#00d54b", "#42b7ff", "#ffc857", "#ff6b8a", "#8b7dff"];
+    for (let index = 0; index < 18; index += 1) {
+        const particle = document.createElement("span");
+        const angle = (Math.PI * 2 * index) / 18;
+        const distance = 42 + (index % 4) * 13;
+        particle.className = "fx-particle";
+        particle.style.setProperty("--x", `${Math.cos(angle) * distance}px`);
+        particle.style.setProperty("--y", `${Math.sin(angle) * distance}px`);
+        particle.style.setProperty("--delay", `${(index % 5) * 18}ms`);
+        particle.style.setProperty("--color", colors[index % colors.length]);
+        layer.appendChild(particle);
+    }
+    window.setTimeout(() => {
+        layer.innerHTML = "";
+    }, 850);
 }
 
 function captureUndoState(label) {
@@ -786,7 +980,10 @@ function captureUndoState(label) {
         ledgerRaw: localStorage.getItem(LEDGER_KEY),
         expenseKey: expenseKey,
         expenseRaw: localStorage.getItem(expenseKey),
-        balanceCheckRaw: localStorage.getItem(BALANCE_CHECK_KEY)
+        balanceCheckRaw: localStorage.getItem(BALANCE_CHECK_KEY),
+        billsRaw: localStorage.getItem(BILLS_KEY),
+        billDismissalsRaw: localStorage.getItem(BILLS_DISMISSED_KEY),
+        defaultBillBanksRaw: localStorage.getItem(DEFAULT_BILL_BANKS_KEY)
     }));
     renderUndoMessage();
 }
@@ -851,6 +1048,17 @@ function undoLastAction() {
             localStorage.setItem(BALANCE_CHECK_KEY, snapshot.balanceCheckRaw);
         }
     }
+    [
+        [BILLS_KEY, snapshot.billsRaw],
+        [BILLS_DISMISSED_KEY, snapshot.billDismissalsRaw],
+        [DEFAULT_BILL_BANKS_KEY, snapshot.defaultBillBanksRaw]
+    ].forEach(([key, raw]) => {
+        if (raw === null || typeof raw === "undefined") {
+            localStorage.removeItem(key);
+        } else {
+            localStorage.setItem(key, raw);
+        }
+    });
     localStorage.removeItem(UNDO_KEY);
     if (snapshot.label === "Month closed") {
         saveCloseHistory(loadCloseHistory().filter(item => item.month !== snapshot.month));
@@ -1271,6 +1479,8 @@ function showPage(pageId) {
     });
 
     targetPage.classList.add("active");
+    targetPage.setAttribute("tabindex", "-1");
+    targetPage.focus({ preventScroll: true });
     window.scrollTo(0, 0);
 
     const message = document.getElementById("message");
@@ -1345,6 +1555,7 @@ function showPage(pageId) {
         const billsToggle = document.getElementById("notifyBillsToggle");
         const dailyToggle = document.getElementById("notifyDailySpendingToggle");
         const backupToggle = document.getElementById("notifyBackupToggle");
+        const soundsToggle = document.getElementById("actionSoundsToggle");
         if (billsToggle) {
             billsToggle.checked = prefs.bills;
         }
@@ -1354,6 +1565,9 @@ function showPage(pageId) {
         if (backupToggle) {
             backupToggle.checked = prefs.backup;
         }
+        if (soundsToggle) {
+            soundsToggle.checked = prefs.actionSounds;
+        }
     }
 }
 
@@ -1362,12 +1576,15 @@ function renderCategoryNameFields() {
     if (!container) {
         return;
     }
+    const styles = loadCategoryStyles();
     container.innerHTML = Object.keys(DEFAULT_CATEGORIES).map(category =>
-        '<label class="label" for="categoryName_' + category + '">' +
+        '<div class="category-style-row"><div class="category-style-preview" style="--category-color:' + styles[category].color + '">' +
+        escapeHtml(styles[category].icon) + '</div><div class="category-style-fields"><label class="label" for="categoryName_' + category + '">' +
         category + ' — default "' + escapeHtml(DEFAULT_CATEGORY_NAMES[category]) + '"</label>' +
-        '<input id="categoryName_' + category + '" type="text" maxlength="40" ' +
-        'value="' + escapeHtml(CATEGORY_NAMES[category]) + '" ' +
-        'placeholder="' + escapeHtml(DEFAULT_CATEGORY_NAMES[category]) + '">'
+        '<input id="categoryName_' + category + '" type="text" maxlength="40" value="' + escapeHtml(CATEGORY_NAMES[category]) + '" placeholder="' +
+        escapeHtml(DEFAULT_CATEGORY_NAMES[category]) + '"><div class="category-style-controls"><input id="categoryIcon_' + category + '" type="text" maxlength="2" value="' +
+        escapeHtml(styles[category].icon) + '" aria-label="' + escapeHtml(category) + ' symbol"><input id="categoryColor_' + category + '" type="color" value="' +
+        escapeHtml(styles[category].color) + '" aria-label="' + escapeHtml(category) + ' color"></div></div></div>'
     ).join("");
 }
 
@@ -1378,6 +1595,7 @@ function saveCategoryNames() {
             saveCategoryName(category, input.value);
         }
     });
+    saveCategoryStyles();
     updateAll();
     setMessage("Category names updated.");
 }
@@ -1690,13 +1908,20 @@ function renderAssignments() {
         const name = CATEGORY_NAMES[category];
         const destination = DESTINATIONS[category];
         const funded = hasAssignmentFunding(data, category);
+        const fundingTransfer = (data?.transactions || []).find(transaction =>
+            transaction.type === "internal_transfer" &&
+            transaction.category === category &&
+            transaction.transferKind !== "assignment_payment" &&
+            transaction.to === destination &&
+            transaction.from === data?.mainBank);
+        const fundedAmount = funded ? Number(fundingTransfer?.amount || 0) : 0;
         const paid = Boolean(data?.recipientTransfers?.[category]);
         const spent = ledger
             .filter(transaction => transaction.month === monthKey() &&
                 isSpendingTransaction(transaction) &&
                 transaction.category === category)
             .reduce((total, transaction) => total + Number(transaction.amount || 0), 0);
-        const remaining = Math.max(0, Number(amount) - spent);
+        const remaining = Math.max(0, fundedAmount - spent);
         const dailyBudget = ["T", "C"].includes(category)
             ? Math.round(Number(amount) / daysInSelectedMonth())
             : 0;
@@ -1713,7 +1938,7 @@ function renderAssignments() {
                     <span class="symbol" aria-hidden="true">${category}</span>
                     <div>
                         <div class="category-name">${name}</div>
-                        <div class="category-default">${status} · Planned ${money(amount)}</div>
+                        <div class="category-default">${status} · Planned ${money(amount)} · Funded ${money(fundedAmount)}</div>
                     </div>
                 </div>
                 <label class="assignment-amount-wrap">
@@ -1723,20 +1948,25 @@ function renderAssignments() {
                         aria-label="${name} assignment amount" value="${amount}">
                 </label>
             </div>
-            ${["M", "S", "$"].includes(category) ? "" : `
+            ${["M", "S", "$"].includes(category) ? `
+                <div class="assignment-meta assignment-funding-meta">
+                    <span>${money(fundedAmount)} funded</span>
+                    <strong>${money(Math.max(0, Number(amount) - fundedAmount))} waiting</strong>
+                </div>
+            ` : `
                 <div class="assignment-progress" aria-label="${name} spending progress">
-                    <span class="${amount > 0 && spent >= amount ? "over" : amount > 0 && spent >= amount * 0.8 ? "near" : ""}"
-                        style="width:${amount > 0 ? Math.min(100, spent / amount * 100) : 0}%"></span>
+                    <span class="${fundedAmount > 0 && spent >= fundedAmount ? "over" : fundedAmount > 0 && spent >= fundedAmount * 0.8 ? "near" : ""}"
+                        style="width:${fundedAmount > 0 ? Math.min(100, spent / fundedAmount * 100) : 0}%"></span>
                 </div>
                 <div class="assignment-meta">
-                    <span>${money(spent)} used</span>
+                    <span>${money(fundedAmount)} funded · ${money(spent)} used</span>
                     <strong>${money(remaining)} remaining</strong>
                     ${dailyBudget ? `<span>${money(dailyBudget)}/day guide</span>` : ""}
                 </div>
-                ${amount > 0 && spent >= amount
-                    ? `<div class="assignment-warning over">⚠ Over the ${name} budget by ${money(spent - amount)}.</div>`
-                    : amount > 0 && spent >= amount * 0.8
-                        ? `<div class="assignment-warning near">${name} is at ${Math.round(spent / amount * 100)}% of its budget.</div>`
+                ${fundedAmount > 0 && spent >= fundedAmount
+                    ? `<div class="assignment-warning over">⚠ Over the funded ${name} amount by ${money(spent - fundedAmount)}.</div>`
+                    : fundedAmount > 0 && spent >= fundedAmount * 0.8
+                        ? `<div class="assignment-warning near">${name} is at ${Math.round(spent / fundedAmount * 100)}% of its funded amount.</div>`
                         : ""}
             `}
             <div class="destination">
@@ -2189,7 +2419,9 @@ function completeTransfer(category) {
         to: destination,
 
         description:
-            CATEGORY_NAMES[category]
+            CATEGORY_NAMES[category],
+        transferKind: "assignment",
+        isAssignment: true
 
     });
 
@@ -2202,7 +2434,9 @@ function completeTransfer(category) {
     from: selectedBank,
     to: destination,
     description: CATEGORY_NAMES[category],
-    month: monthKey()
+    month: monthKey(),
+    transferKind: "assignment",
+    isAssignment: true
 });
 
     if (category === "$") {
@@ -2708,12 +2942,21 @@ function renderSavingsGoals() {
     list.innerHTML = goals.length ? goals.map(goal => {
         const target = Math.max(1, Number(goal.target) || 1);
         const saved = Math.min(target, Math.max(0, Number(goal.saved) || 0));
+        const monthly = Math.max(0, Number(goal.monthly) || 0);
+        const remaining = Math.max(0, target - saved);
         const percent = Math.min(100, Math.round(saved / target * 100));
+        const etaMonths = monthly > 0 && remaining > 0 ? Math.ceil(remaining / monthly) : 0;
+        const eta = etaMonths > 0
+            ? new Date(new Date().getFullYear(), new Date().getMonth() + etaMonths, 1)
+            : null;
+        const etaLabel = eta ? eta.toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "Not set";
         return '<div class="goal-item"><div class="goal-heading"><strong>' +
             escapeHtml(goal.name) + '</strong><span>' + percent + '%</span></div>' +
             '<div class="goal-track"><div class="goal-progress" style="width:' +
             percent + '%"></div></div><div class="label">' + money(saved) +
-            ' / ' + money(target) + '</div><div class="goal-actions">' +
+            ' / ' + money(target) + '</div><div class="goal-projection"><span>6 months: ' +
+            money(saved + monthly * 6) + '</span><span>1 year: ' + money(saved + monthly * 12) +
+            '</span><span>Target: ' + escapeHtml(etaLabel) + '</span></div><div class="goal-actions">' +
             '<input class="goal-contribution" data-goal-id="' + escapeHtml(goal.id) +
             '" type="number" min="1" max="' + MAX_AMOUNT + '" step="1" placeholder="Add amount">' +
             '<button type="button" class="secondary-button goal-add-button" data-goal-id="' +
@@ -2759,20 +3002,23 @@ function addSavingsGoal() {
     const name = document.getElementById("goalName").value.trim();
     const target = Number(document.getElementById("goalTarget").value);
     const saved = Number(document.getElementById("goalSaved").value || 0);
+    const monthly = Number(document.getElementById("goalMonthly").value || 0);
     if (!name || name.length > 80 || !Number.isInteger(target) || target <= 0 ||
-        target > MAX_AMOUNT || !Number.isInteger(saved) || saved < 0 || saved > target) {
+        target > MAX_AMOUNT || !Number.isInteger(saved) || saved < 0 || saved > target ||
+        !Number.isInteger(monthly) || monthly < 0 || monthly > MAX_AMOUNT) {
         alert("Enter a goal name, a valid target, and saved amount up to the target.");
         return;
     }
     const goals = loadSavingsGoals();
     goals.push({
         id: String(Date.now()) + "-" + Math.random().toString(36).slice(2),
-        name: name, target: target, saved: saved
+        name: name, target: target, saved: saved, monthly: monthly
     });
     saveSavingsGoals(goals);
     document.getElementById("goalName").value = "";
     document.getElementById("goalTarget").value = "";
     document.getElementById("goalSaved").value = "";
+    document.getElementById("goalMonthly").value = "";
     renderSavingsGoals();
     setMessage("Savings goal added.");
 }
@@ -2794,11 +3040,38 @@ function saveBills(bills) {
     localStorage.setItem(BILLS_KEY, JSON.stringify(bills));
 }
 
+function loadBillDismissals() {
+    try {
+        const data = JSON.parse(localStorage.getItem(BILLS_DISMISSED_KEY) || "[]");
+        return Array.isArray(data) ? data : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveBillDismissals(dismissals) {
+    localStorage.setItem(BILLS_DISMISSED_KEY, JSON.stringify(dismissals));
+}
+
+function loadDefaultBillBanks() {
+    try {
+        const data = JSON.parse(localStorage.getItem(DEFAULT_BILL_BANKS_KEY) || "{}");
+        return data && typeof data === "object" ? data : {};
+    } catch {
+        return {};
+    }
+}
+
+function saveDefaultBillBanks(banks) {
+    localStorage.setItem(DEFAULT_BILL_BANKS_KEY, JSON.stringify(banks));
+}
+
 function ensureDefaultMonthlyBills() {
     if (monthKey() !== currentMonthKey()) {
         return;
     }
     const month = monthKey();
+    const defaultBanks = loadDefaultBillBanks();
     const bank = selectedBank || "Bankily";
     const defaults = [
         ["Adobe", 3500, 5],
@@ -2811,7 +3084,7 @@ function ensureDefaultMonthlyBills() {
     let changed = false;
     defaults.forEach(([name, amount, day]) => {
         const defaultKey = name + "-" + month;
-        if (bills.some(bill => bill.defaultKey === defaultKey)) {
+        if (loadBillDismissals().includes(defaultKey) || bills.some(bill => bill.defaultKey === defaultKey)) {
             return;
         }
         bills.push({
@@ -2820,7 +3093,7 @@ function ensureDefaultMonthlyBills() {
             name: name,
             amount: amount,
             dueDate: month + "-" + String(day).padStart(2, "0"),
-            bank: bank,
+            bank: defaultBanks[name] || bank,
             reminderDays: 3,
             paid: false,
             paidDate: null
@@ -2838,7 +3111,7 @@ function ensureDefaultMonthlyBills() {
 function recurCustomBills(bills, month) {
     let changed = false;
     bills.slice().forEach(bill => {
-        if (!bill.paid || bill.defaultKey) {
+        if (bill.defaultKey || !bill.recurKey || bill.recurTemplate) {
             return;
         }
         const dueDate = new Date(String(bill.dueDate) + "T12:00:00");
@@ -2849,7 +3122,7 @@ function recurCustomBills(bills, month) {
         if (billMonth >= month) {
             return;
         }
-        const recurKey = (bill.recurKey || bill.name) + "-" + month;
+        const recurKey = bill.recurKey + "-" + month;
         if (bills.some(item => item.recurKey === recurKey)) {
             return;
         }
@@ -2857,6 +3130,7 @@ function recurCustomBills(bills, month) {
         bills.push({
             id: "recur-bill-" + recurKey + "-" + Math.random().toString(36).slice(2),
             recurKey: recurKey,
+            recurTemplate: bill.recurKey,
             name: bill.name,
             amount: bill.amount,
             dueDate: month + "-" + String(day).padStart(2, "0"),
@@ -2914,19 +3188,28 @@ function billItemHtml(bill, compact) {
     const status = billStatusText(bill);
     const statusClass = bill.paid ? "bill-paid"
         : billDaysUntil(bill.dueDate) < 0 ? "bill-overdue" : "bill-upcoming";
+    const parsedDate = new Date(String(bill.dueDate) + "T12:00:00");
+    const dueMonth = Number.isNaN(parsedDate.getTime()) ? "—" :
+        parsedDate.toLocaleDateString(currentLanguage() === "fr" ? "fr-FR"
+            : currentLanguage() === "ar" ? "ar" : "en-US", { month: "short" }).toUpperCase();
+    const dueDay = Number.isNaN(parsedDate.getTime()) ? "—" : parsedDate.getDate();
     const paidNote = bill.paid && bill.paidDate
         ? '<div class="bill-paid-note">Paid on ' + escapeHtml(billDateLabel(bill.paidDate)) + '</div>' : "";
     return '<article class="bill-item ' + statusClass + '">' +
-        '<div class="bill-copy"><strong>' + escapeHtml(bill.name) + '</strong>' +
-        '<div class="label">' + money(bill.amount) + ' · <span class="bill-bank-tag">' +
-        escapeHtml(bill.bank || "No bank") + '</span> · ' + billDateLabel(bill.dueDate) +
-        '</div><span class="bill-status-pill">' + escapeHtml(status) + '</span>' + paidNote + '</div>' +
+        '<div class="bill-date-block"><span>' + escapeHtml(dueMonth) + '</span><strong>' + escapeHtml(String(dueDay)) + '</strong></div>' +
+        '<div class="bill-copy"><div class="bill-title-row"><strong>' + escapeHtml(bill.name) + '</strong>' +
+        '<span class="bill-status-pill">' + escapeHtml(bill.paid ? "Paid" : status) + '</span></div>' +
+        '<div class="bill-meta"><strong>' + money(bill.amount) + '</strong><span class="bill-meta-dot">•</span><span class="bill-bank-tag">' +
+        escapeHtml(bill.bank || "No bank") + '</span></div>' +
+        paidNote + '</div>' +
         (compact && bill.paid ? "" :
             '<div class="bill-actions">' +
             (bill.paid ? '<button type="button" class="secondary-button bill-action" data-bill-action="unpay" data-bill-id="' +
                 escapeHtml(bill.id) + '" data-bill-name="' + escapeHtml(bill.name) + '">Mark unpaid</button>' :
                 '<button type="button" class="primary-button bill-action" data-bill-action="pay" data-bill-id="' +
                 escapeHtml(bill.id) + '" data-bill-name="' + escapeHtml(bill.name) + '">Mark paid</button>') +
+            '<button type="button" class="secondary-button bill-action" data-bill-action="edit" data-bill-id="' +
+            escapeHtml(bill.id) + '">Edit</button>' +
             '<button type="button" class="recurring-delete bill-action" data-bill-action="delete" data-bill-id="' +
             escapeHtml(bill.id) + '">Remove</button></div>') + '</article>';
 }
@@ -2995,8 +3278,8 @@ function renderBillItems(list, bills, compact, options) {
         }
     });
     list.innerHTML = groups.filter(group => group.bills.length).map(group =>
-        '<div class="bill-group"><div class="bill-group-header">' + group.label +
-        ' <span class="bill-group-count">' + group.bills.length + '</span></div>' +
+        '<div class="bill-group"><div class="bill-group-header"><span>' + group.label + '</span>' +
+        '<span class="bill-group-count">' + group.bills.length + ' bill' + (group.bills.length === 1 ? '' : 's') + '</span></div>' +
         group.bills.map(bill => billItemHtml(bill, compact)).join("") + '</div>'
     ).join("");
     attachBillActionHandlers(list);
@@ -3020,6 +3303,7 @@ function attachBillActionHandlers(list) {
                     (bill.paid ? " and refund " + money(bill.amount) + " to " + bill.bank + "?" : "?"))) {
                     return;
                 }
+                captureUndoState("Bill removed");
                 if (bill.paid) {
                     const transactionId = "bill-payment-" + bill.id;
                     const transaction = loadLedger().find(item =>
@@ -3038,12 +3322,23 @@ function attachBillActionHandlers(list) {
                         saveMonthData(monthData);
                     }
                 }
+                if (bill.defaultKey) {
+                    const dismissals = loadBillDismissals();
+                    if (!dismissals.includes(bill.defaultKey)) {
+                        dismissals.push(bill.defaultKey);
+                        saveBillDismissals(dismissals);
+                    }
+                }
                 saveBills(updated.filter(item => String(item.id) !== id));
                 renderBills();
                 updateDashboardBills();
                 checkBillReminders();
                 updateAll();
                 setMessage("Bill removed.");
+                return;
+            }
+            if (action === "edit") {
+                beginBillEdit(id);
                 return;
             }
             applyBillPaymentAction(id, action);
@@ -3135,9 +3430,39 @@ function renderBills() {
     ensureDefaultMonthlyBills();
     const bills = loadBills();
     renderBillItems(document.getElementById("billsList"), bills, false, getBillFilterOptions());
+    const unpaid = bills.filter(bill => !bill.paid);
+    const nextBill = unpaid.slice().sort((a, b) =>
+        String(a.dueDate).localeCompare(String(b.dueDate)))[0];
+    const overviewTotal = document.getElementById("billOverviewTotal");
+    const overviewTotalHint = document.getElementById("billOverviewTotalHint");
+    const overviewUnpaid = document.getElementById("billOverviewUnpaid");
+    const overviewUnpaidHint = document.getElementById("billOverviewUnpaidHint");
+    const overviewNext = document.getElementById("billOverviewNext");
+    const overviewNextHint = document.getElementById("billOverviewNextHint");
+    const listCount = document.getElementById("billListCount");
+    if (overviewTotal) {
+        overviewTotal.textContent = money(bills.reduce((sum, bill) => sum + Number(bill.amount || 0), 0));
+    }
+    if (overviewTotalHint) {
+        overviewTotalHint.textContent = bills.length + " bill" + (bills.length === 1 ? "" : "s");
+    }
+    if (overviewUnpaid) {
+        overviewUnpaid.textContent = money(unpaid.reduce((sum, bill) => sum + Number(bill.amount || 0), 0));
+    }
+    if (overviewUnpaidHint) {
+        overviewUnpaidHint.textContent = unpaid.length + " unpaid";
+    }
+    if (overviewNext) {
+        overviewNext.textContent = nextBill ? billDateLabel(nextBill.dueDate).replace(/, \d{4}$/, "") : "—";
+    }
+    if (overviewNextHint) {
+        overviewNextHint.textContent = nextBill ? nextBill.name : "Nothing scheduled";
+    }
+    if (listCount) {
+        listCount.textContent = bills.length + " bill" + (bills.length === 1 ? "" : "s");
+    }
     const summary = document.getElementById("homeBillsSummary");
     if (summary) {
-        const unpaid = bills.filter(bill => !bill.paid);
         summary.textContent = unpaid.length
             ? unpaid.length + " unpaid · " + money(
                 unpaid.reduce((sum, bill) => sum + Number(bill.amount || 0), 0))
@@ -3149,6 +3474,7 @@ function renderBills() {
 function updateDashboardBills() {
     const totalElement = document.getElementById("dashboardBills");
     const statusElement = document.getElementById("dashboardBillsStatus");
+    const guideElement = document.getElementById("dashboardBillsGuide");
     if (!totalElement || !statusElement) {
         return;
     }
@@ -3157,7 +3483,15 @@ function updateDashboardBills() {
     const unpaid = bills.filter(bill => !bill.paid);
     const unpaidTotal = unpaid.reduce((sum, bill) => sum + Number(bill.amount || 0), 0);
     totalElement.textContent = money(unpaidTotal);
+    totalElement.classList.toggle("negative", unpaidTotal > 0);
+    totalElement.classList.remove("positive");
     statusElement.textContent = paid.length + " paid · " + unpaid.length + " unpaid";
+    if (guideElement) {
+        guideElement.hidden = unpaidTotal <= 0;
+        guideElement.textContent = unpaidTotal > 0
+            ? "Keep " + money(unpaidTotal) + " reserved for bills. This is separate from P, C & T spending money."
+            : "";
+    }
 }
 
 function checkBillReminders() {
@@ -3204,22 +3538,70 @@ function addBill() {
         return;
     }
     const bills = loadBills();
-    bills.push({
-        id: String(Date.now()) + "-" + Math.random().toString(36).slice(2),
-        name: name,
-        amount: amount,
-        dueDate: dueDate,
-        bank: bank,
-        reminderDays: reminderDays,
-        paid: false,
-        paidDate: null
-    });
+    const addButton = document.getElementById("addBillButton");
+    const editingId = addButton.dataset.editingId;
+    const existing = editingId ? bills.find(bill => String(bill.id) === editingId) : null;
+    if (existing) {
+        const oldName = existing.name;
+        existing.name = name;
+        existing.amount = amount;
+        existing.dueDate = dueDate;
+        existing.bank = bank;
+        existing.reminderDays = reminderDays;
+        if (existing.defaultKey) {
+            const defaultBanks = loadDefaultBillBanks();
+            defaultBanks[oldName] = bank;
+            saveDefaultBillBanks(defaultBanks);
+        }
+    } else {
+        bills.push({
+            id: String(Date.now()) + "-" + Math.random().toString(36).slice(2),
+            name: name,
+            amount: amount,
+            dueDate: dueDate,
+            bank: bank,
+            reminderDays: reminderDays,
+            recurKey: "custom-" + String(Date.now()) + "-" + Math.random().toString(36).slice(2),
+            paid: false,
+            paidDate: null
+        });
+    }
     saveBills(bills);
     ["billName", "billAmount", "billDueDate"].forEach(id => {
         document.getElementById(id).value = "";
     });
+    document.getElementById("billReminderDays").value = "3";
+    addButton.textContent = "Add bill";
+    delete addButton.dataset.editingId;
+    document.getElementById("cancelBillEditButton").hidden = true;
     renderBills();
-    setMessage("Bill added.");
+    setMessage(existing ? "Bill updated." : "Bill added.");
+}
+
+function beginBillEdit(id) {
+    const bill = loadBills().find(item => String(item.id) === String(id));
+    if (!bill) {
+        return;
+    }
+    document.getElementById("billName").value = bill.name || "";
+    document.getElementById("billAmount").value = bill.amount || "";
+    document.getElementById("billDueDate").value = bill.dueDate || "";
+    document.getElementById("billBank").value = bill.bank || "Bankily";
+    document.getElementById("billReminderDays").value = bill.reminderDays ?? 3;
+    document.getElementById("addBillButton").dataset.editingId = bill.id;
+    document.getElementById("addBillButton").textContent = "Save bill";
+    document.getElementById("cancelBillEditButton").hidden = false;
+    document.getElementById("billName").focus();
+}
+
+function cancelBillEdit() {
+    ["billName", "billAmount", "billDueDate"].forEach(id => {
+        document.getElementById(id).value = "";
+    });
+    document.getElementById("billReminderDays").value = "3";
+    document.getElementById("addBillButton").textContent = "Add bill";
+    delete document.getElementById("addBillButton").dataset.editingId;
+    document.getElementById("cancelBillEditButton").hidden = true;
 }
 
 /* =========================================================
@@ -3335,6 +3717,12 @@ function renderBackupIntegrityStatus() {
     status.textContent = Number.isFinite(parsed)
         ? "Last verified export: " + new Date(parsed).toLocaleString() + " · format v" + BACKUP_VERSION
         : "No verified export recorded on this device.";
+    const summary = document.getElementById("backupContentsSummary");
+    if (summary) {
+        const months = Object.keys(localStorage).filter(key => key.indexOf("itoumrou_month_") === 0).length;
+        summary.textContent = "Backup includes " + loadLedger().length + " transactions, " +
+            loadBills().length + " bills, and " + months + " saved month" + (months === 1 ? "" : "s") + ".";
+    }
 }
 
 function snoozeBackupReminder() {
@@ -3545,7 +3933,6 @@ function addExpenseRow(prefill) {
         </select>
         <div class="expense-category-guide label" role="status"></div>
 
-
         <label
             class="label"
             style="margin-top:10px;"
@@ -3589,7 +3976,6 @@ function addExpenseRow(prefill) {
             }
         );
 
-
     row
         .querySelector(
             ".expense-amount-input"
@@ -3632,6 +4018,23 @@ function addExpenseRow(prefill) {
 
     list.appendChild(row);
     updatePendingExpenseTotal();
+}
+
+function readReceiptFile(file) {
+    return new Promise((resolve, reject) => {
+        if (!file) {
+            resolve("");
+            return;
+        }
+        if (!file.type.startsWith("image/") || file.size > 2 * 1024 * 1024) {
+            reject(new Error("Receipt photos must be images smaller than 2 MB."));
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("The receipt photo could not be read."));
+        reader.readAsDataURL(file);
+    });
 }
 
 function updatePendingExpenseTotal() {
@@ -3811,7 +4214,7 @@ function renderExpenseList() {
                             )}
                         </div>
 
-                        <div class="expense-amount">
+                        <div class="expense-amount negative">
                             −${money(expense.amount)}
                         </div>
 
@@ -3866,6 +4269,17 @@ function startExpenseEdit(row, expense) {
             <input class="expense-edit-description" type="text" maxlength="120"
                 value="${escapeHtml(expense.description)}"
                 aria-label="Expense description">
+            <select class="expense-edit-category" aria-label="Expense category">
+                <option value="T">T — Taxi</option>
+                <option value="C">C — Cigar</option>
+                <option value="P">P — Personal needs</option>
+                <option value="OTHER">Other</option>
+            </select>
+            <select class="expense-edit-bank" aria-label="Paid from">
+                ${BANKS.map(bank => '<option value="' + bank + '">' + bank + '</option>').join("")}
+            </select>
+            <input class="expense-edit-date" type="date" value="${escapeHtml(expense.date || todayKey())}"
+                aria-label="Expense date">
             <div class="expense-actions">
                 <button type="button" class="expense-save-edit">Save</button>
                 <button type="button" class="expense-cancel-edit">Cancel</button>
@@ -3876,6 +4290,8 @@ function startExpenseEdit(row, expense) {
         saveEditedExpense(expense.id, row);
     });
     row.querySelector(".expense-cancel-edit").addEventListener("click", renderExpenseList);
+    row.querySelector(".expense-edit-category").value = expense.category || "OTHER";
+    row.querySelector(".expense-edit-bank").value = expense.bank || BANKS[0];
     row.querySelector(".expense-edit-amount").focus();
 }
 
@@ -3887,28 +4303,50 @@ function saveEditedExpense(expenseId, row) {
     const expense = expenses.find(item => item.id === expenseId);
     const amountInput = row.querySelector(".expense-edit-amount");
     const descriptionInput = row.querySelector(".expense-edit-description");
+    const categoryInput = row.querySelector(".expense-edit-category");
+    const bankInput = row.querySelector(".expense-edit-bank");
+    const dateInput = row.querySelector(".expense-edit-date");
     const amount = Number(amountInput?.value);
     const description = descriptionInput?.value.trim();
+    const category = categoryInput?.value || "OTHER";
+    const bank = bankInput?.value;
+    const date = dateInput?.value;
     if (!expense || !Number.isInteger(amount) || amount <= 0 ||
         amount > MAX_AMOUNT || !description || description.length > 120 ||
-        !BANKS.includes(expense.bank) || !Number.isFinite(Number(expense.amount))) {
-        alert("Enter a whole amount and a description of 1–120 characters.");
+        !BANKS.includes(expense.bank) || !BANKS.includes(bank) ||
+        !["T", "C", "P", "OTHER"].includes(category) || !date ||
+        !Number.isFinite(Number(expense.amount))) {
+        alert("Enter a valid amount, description, category, bank, and date.");
         return;
     }
-    const difference = amount - Number(expense.amount);
+    const oldAmount = Number(expense.amount);
+    const oldBank = expense.bank;
     const balances = getBalances();
-    if (difference > 0 && balances[expense.bank] < difference) {
-        alert("Not enough money in " + expense.bank + " for this correction.");
+    balances[oldBank] += oldAmount;
+    if (balances[bank] < amount && bank !== oldBank) {
+        alert("Not enough money in " + bank + " for this correction.");
         return;
     }
+    if (bank === oldBank && balances[bank] < amount) {
+        alert("Not enough money in " + bank + " for this correction.");
+        return;
+    }
+    balances[bank] -= amount;
     const previousDescription = expense.description;
+    const previousDate = expense.date;
     captureUndoState("Expense edited");
-    balances[expense.bank] -= difference;
     saveBalances(balances);
     expense.amount = amount;
     expense.description = description;
+    expense.category = category;
+    expense.bank = bank;
+    expense.date = date;
     saveExpenses(expenses);
-    syncExpenseTransaction(expense, previousDescription);
+    if (previousDate !== date) {
+        saveExpensesForDate(previousDate, loadExpensesForDate(previousDate).filter(item => item.id !== expense.id));
+        saveExpensesForDate(date, loadExpensesForDate(date).filter(item => item.id !== expense.id).concat(expense));
+    }
+    syncExpenseTransaction(expense, previousDescription, previousDate);
     renderExpenseList();
     updateAll();
 }
@@ -4012,7 +4450,7 @@ function deleteExpense(expenseId) {
 }
 
 
-function syncExpenseTransaction(expense, previousDescription) {
+function syncExpenseTransaction(expense, previousDescription, previousDate) {
 
     const ledger = loadLedger();
     const ledgerExpense = ledger.find(transaction =>
@@ -4022,6 +4460,10 @@ function syncExpenseTransaction(expense, previousDescription) {
     if (ledgerExpense) {
         ledgerExpense.amount = expense.amount;
         ledgerExpense.description = expense.description;
+        ledgerExpense.category = expense.category;
+        ledgerExpense.bank = expense.bank;
+        ledgerExpense.date = expense.date;
+        ledgerExpense.month = String(expense.date || "").slice(0, 7) || ledgerExpense.month;
         saveLedger(ledger);
     }
 
@@ -4038,6 +4480,9 @@ function syncExpenseTransaction(expense, previousDescription) {
     if (monthExpense) {
         monthExpense.amount = expense.amount;
         monthExpense.description = expense.description;
+        monthExpense.category = expense.category;
+        monthExpense.bank = expense.bank;
+        monthExpense.date = expense.date;
         saveMonthData(monthData);
     }
 
@@ -4135,7 +4580,7 @@ function escapeHtml(text) {
 }
 
 
-function finishSpending() {
+async function finishSpending() {
     if (!requireOpenMonth("saving spending")) {
         return;
     }
@@ -4286,8 +4731,6 @@ function finishSpending() {
 
 
         balances[bank] -= amount;
-
-
         newExpenses.push({
 
             id:
@@ -4411,6 +4854,9 @@ function finishSpending() {
 
             description:
                 expense.description,
+
+            receipt:
+                expense.receipt || "",
 
             date:
                 expense.date,
@@ -4767,12 +5213,12 @@ function renderBalanceCheck() {
                 </div>
             </div>
             <input type="number" class="balance-check-input" data-bank="${bank}"
-                inputmode="numeric" step="1" placeholder="${balances[bank]}">
+                inputmode="decimal" step="0.01" placeholder="${Number(balances[bank] || 0).toFixed(2)}">
         </div>
     `).join("");
 }
 
-function saveBalanceCheck() {
+async function saveBalanceCheck() {
     if (!requireOpenMonth("checking bank balances")) {
         return;
     }
@@ -4782,22 +5228,22 @@ function saveBalanceCheck() {
     const adjustments = [];
     let anyEntered = false;
 
-    inputs.forEach(input => {
+    for (const input of inputs) {
         const bank = input.dataset.bank;
         const raw = input.value.trim();
         if (raw === "" || !BANKS.includes(bank)) {
             return;
         }
-        const actual = Math.round(Number(raw));
+        const actual = Math.round(Number(raw) * 100) / 100;
         if (!Number.isFinite(actual) || actual < 0) {
             return;
         }
         anyEntered = true;
-        const difference = actual - Number(balances[bank] || 0);
+        const difference = Math.round((actual - Number(balances[bank] || 0)) * 100) / 100;
         if (difference !== 0) {
             adjustments.push({ bank, difference, actual });
         }
-    });
+    }
 
     if (!anyEntered) {
         alert("Enter at least one actual balance to confirm this month's check.");
@@ -4807,7 +5253,7 @@ function saveBalanceCheck() {
     captureUndoState("Balance check recorded");
 
     adjustments.forEach(({ bank, difference }) => {
-        balances[bank] += difference;
+        balances[bank] = Math.round((balances[bank] + difference) * 100) / 100;
         const isIncome = difference > 0;
         const transaction = {
             id: "balance-check-" + Date.now() + "-" + Math.random().toString(36).slice(2),
@@ -5430,6 +5876,53 @@ function saveSavingsTarget(amount) {
     }
 }
 
+function getGoalForecast(currentBalance, target, monthlyRate) {
+    if (!target || target <= 0) {
+        return {
+            status: "Set a target to estimate your future savings timeline.",
+            monthsNeeded: 0,
+            etaLabel: "",
+            remaining: 0,
+            requiredMonthly: 0
+        };
+    }
+
+    if (currentBalance >= target) {
+        return {
+            status: "Goal reached. You are ahead of plan.",
+            monthsNeeded: 0,
+            etaLabel: "",
+            remaining: 0,
+            requiredMonthly: 0
+        };
+    }
+
+    const remaining = target - currentBalance;
+    if (monthlyRate <= 0) {
+        return {
+            status: "Keep saving each month to estimate when you will reach this goal.",
+            monthsNeeded: 0,
+            etaLabel: "",
+            remaining,
+            requiredMonthly: 0
+        };
+    }
+
+    const monthsNeeded = Math.max(1, Math.ceil(remaining / monthlyRate));
+    const etaDate = new Date();
+    etaDate.setMonth(etaDate.getMonth() + monthsNeeded);
+    const etaLabel = etaDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+    return {
+        status: "Current pace: " + money(monthlyRate) + "/month. You could reach this goal in about " +
+            monthsNeeded + (monthsNeeded === 1 ? " month" : " months") + " (" + etaLabel + ").",
+        monthsNeeded,
+        etaLabel,
+        remaining,
+        requiredMonthly: monthlyRate
+    };
+}
+
 function renderSavingsGoal(currentBalance, monthlyRate) {
     const target = loadSavingsTarget();
     const input = document.getElementById("savingsGoalInput");
@@ -5465,28 +5958,51 @@ function renderSavingsGoal(currentBalance, monthlyRate) {
         bar.className = percent >= 100 ? "" : percent >= 85 ? "near" : "";
     }
 
+    const forecast = getGoalForecast(currentBalance, target, monthlyRate);
     if (currentBalance >= target) {
         if (label) {
-            label.textContent = "Goal reached! You have " + money(currentBalance) + " saved.";
+            label.textContent = "Goal reached! You have " + money(currentBalance) + " saved and are ahead of target.";
         }
         return;
     }
 
     const remaining = target - currentBalance;
     if (monthlyRate > 0) {
-        const monthsNeeded = Math.ceil(remaining / monthlyRate);
-        const etaDate = new Date();
-        etaDate.setMonth(etaDate.getMonth() + monthsNeeded);
-        const etaLabel = etaDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
         if (label) {
-            label.textContent = percent + "% there · " + money(remaining) + " to go · about " +
-                monthsNeeded + (monthsNeeded === 1 ? " month" : " months") +
-                " away (" + etaLabel + ") at your current pace.";
+            label.textContent = percent + "% there · " + money(remaining) + " left · current pace " +
+                money(monthlyRate) + "/month → " + forecast.status;
         }
     } else if (label) {
         label.textContent = percent + "% there · " + money(remaining) +
-            " to go. Set a monthly $ plan to see an estimated date.";
+            " to go. Set a monthly $ plan to estimate the date you will reach this goal.";
     }
+}
+
+function getSavingsPace(currentPlan) {
+    const monthlyTotals = {};
+    getAllLedgerTransactions()
+        .filter(transaction => transaction.type === "internal_transfer" &&
+            transaction.category === "$" && transaction.to === "Masrvi" &&
+            Number(transaction.amount) > 0)
+        .forEach(transaction => {
+            const month = transaction.month || String(transaction.date || "").slice(0, 7);
+            if (month) {
+                monthlyTotals[month] = (monthlyTotals[month] || 0) + Number(transaction.amount);
+            }
+        });
+    const amounts = Object.values(monthlyTotals);
+    if (!amounts.length) {
+        return {
+            rate: currentPlan,
+            label: "Based on your current plan of " + money(currentPlan) + " per month."
+        };
+    }
+    const rate = Math.round(amounts.reduce((sum, amount) => sum + amount, 0) / amounts.length);
+    return {
+        rate: rate,
+        label: "Based on " + amounts.length + " funded month" +
+            (amounts.length === 1 ? "" : "s") + ": " + money(rate) + " average per month."
+    };
 }
 
 function renderSavingsPage() {
@@ -5500,6 +6016,11 @@ function renderSavingsPage() {
     if (balanceElement) {
         balanceElement.textContent = money(balances.Masrvi);
     }
+    const zakatSavingsAmount = document.getElementById("zakatSavingsAmount");
+    if (zakatSavingsAmount && document.activeElement !== zakatSavingsAmount) {
+        zakatSavingsAmount.value = Math.max(0, Math.round(Number(balances.Masrvi) || 0));
+    }
+    calculateZakat();
 
     const planElement = document.getElementById("savingsMonthlyPlan");
     if (planElement) {
@@ -5507,6 +6028,20 @@ function renderSavingsPage() {
     }
 
     const funded = hasAssignmentFunding(data, "$");
+    const fundingTransfer = (data?.transactions || []).find(transaction =>
+        transaction.type === "internal_transfer" &&
+        transaction.category === "$" &&
+        transaction.transferKind !== "assignment_payment" &&
+        transaction.to === "Masrvi" &&
+        transaction.from === data?.mainBank);
+    const fundedAmount = funded ? Number(fundingTransfer?.amount || 0) : 0;
+    const waitingAmount = Math.max(0, planned - fundedAmount);
+    const plannedElement = document.getElementById("savingsPlannedAmount");
+    const fundedElement = document.getElementById("savingsFundedAmount");
+    const waitingElement = document.getElementById("savingsWaitingAmount");
+    if (plannedElement) plannedElement.textContent = money(planned);
+    if (fundedElement) fundedElement.textContent = money(fundedAmount);
+    if (waitingElement) waitingElement.textContent = money(waitingAmount);
     const fundButton = document.getElementById("savingsFundButton");
     const fundHint = document.getElementById("savingsFundHint");
     if (fundButton) {
@@ -5518,15 +6053,18 @@ function renderSavingsPage() {
             ? "Confirm this month's BM.S income first, then fund savings from your main bank."
             : funded
                 ? "This month's $ savings are already sitting in Masrvi."
-                : "Send this month's $ assignment (" + money(planned) +
-                    ") from your main bank to Masrvi.";
+                : "Nothing moves yet. Press Fund savings when you are ready to send " +
+                    money(planned) + " to Masrvi.";
     }
 
-    const monthlyRate = planned > 0 ? planned : Number(DEFAULT_CATEGORIES.$) || 0;
+    const savingsPace = getSavingsPace(planned > 0 ? planned : Number(DEFAULT_CATEGORIES.$) || 0);
+    const monthlyRate = savingsPace.rate;
     const projection = months => balances.Masrvi + monthlyRate * months;
     const projection6 = document.getElementById("savingsProjection6");
     const projection12 = document.getElementById("savingsProjection12");
     const projection60 = document.getElementById("savingsProjection60");
+    const projectionBasis = document.getElementById("savingsProjectionBasis");
+    const projectionTarget = document.getElementById("savingsProjectionTarget");
     if (projection6) {
         projection6.textContent = money(projection(6));
     }
@@ -5536,8 +6074,26 @@ function renderSavingsPage() {
     if (projection60) {
         projection60.textContent = money(projection(60));
     }
+    if (projectionBasis) {
+        projectionBasis.textContent = "Starting from " + money(balances.Masrvi) +
+            " saved. " + savingsPace.label;
+    }
+    if (projectionTarget) {
+        const target = loadSavingsTarget();
+        if (!target) {
+            projectionTarget.textContent = "Set a savings goal above to see your future target date and pace.";
+        } else if (balances.Masrvi >= target) {
+            projectionTarget.textContent = "Goal reached: you have passed your " + money(target) + " target and are ahead of plan.";
+        } else if (monthlyRate > 0) {
+            const forecast = getGoalForecast(balances.Masrvi, target, monthlyRate);
+            projectionTarget.textContent = "Current pace: " + money(monthlyRate) + "/month. " + forecast.status;
+        } else {
+            projectionTarget.textContent = "Set a monthly savings pace to estimate your target date.";
+        }
+    }
 
     renderSavingsGoal(balances.Masrvi, monthlyRate);
+    renderSavingsGoalsOverview();
 
     const historyList = document.getElementById("savingsHistoryList");
     if (historyList) {
@@ -5558,10 +6114,99 @@ function renderSavingsPage() {
                     '</div><div class="expense-amount ' + (positive ? "positive" : "") + '">' +
                     (positive ? "+" : "−") + money(amount) +
                     '</div></div><div class="expense-meta">' +
-                    calendarDateLabel(transaction.date) + '</div></div>';
+                    transactionDateTimeLabel(transaction) + '</div></div>';
             }).join("")
             : '<div class="empty">No savings activity recorded yet.</div>';
     }
+}
+
+function updateZakatNisabFields() {
+    const basis = document.getElementById("zakatNisabBasis")?.value || "gold";
+    const metalField = document.getElementById("zakatMetalPriceField");
+    const customField = document.getElementById("zakatCustomNisabField");
+    if (metalField) metalField.hidden = basis === "custom";
+    if (customField) customField.hidden = basis !== "custom";
+}
+
+function loadZakatPreferences() {
+    try {
+        const prefs = JSON.parse(localStorage.getItem(ZAKAT_PREFS_KEY) || "{}");
+        return prefs && typeof prefs === "object" ? prefs : {};
+    } catch {
+        return {};
+    }
+}
+
+function restoreZakatPreferences() {
+    const prefs = loadZakatPreferences();
+    const basis = document.getElementById("zakatNisabBasis");
+    const price = document.getElementById("zakatMetalPrice");
+    const custom = document.getElementById("zakatCustomNisab");
+    const debts = document.getElementById("zakatImmediateDebts");
+    const hawl = document.getElementById("zakatHawlComplete");
+    if (basis && ["gold", "silver", "custom"].includes(prefs.basis)) basis.value = prefs.basis;
+    if (price && Number.isFinite(Number(prefs.price))) price.value = prefs.price;
+    if (custom && Number.isFinite(Number(prefs.customNisab))) custom.value = prefs.customNisab;
+    if (debts && Number.isFinite(Number(prefs.debts))) debts.value = prefs.debts;
+    if (hawl) hawl.checked = prefs.hawl === true;
+    updateZakatNisabFields();
+}
+
+function calculateZakat() {
+    const savings = Math.max(0, Number(document.getElementById("zakatSavingsAmount")?.value) || 0);
+    const debts = Math.max(0, Number(document.getElementById("zakatImmediateDebts")?.value) || 0);
+    const basis = document.getElementById("zakatNisabBasis")?.value || "gold";
+    const price = Math.max(0, Number(document.getElementById("zakatMetalPrice")?.value) || 0);
+    const customNisab = Math.max(0, Number(document.getElementById("zakatCustomNisab")?.value) || 0);
+    const hawlComplete = Boolean(document.getElementById("zakatHawlComplete")?.checked);
+    const result = document.getElementById("zakatResult");
+    if (!result) return;
+    localStorage.setItem(ZAKAT_PREFS_KEY, JSON.stringify({
+        basis: basis, price: price, customNisab: customNisab, debts: debts, hawl: hawlComplete
+    }));
+    const nisab = basis === "custom" ? customNisab : price * (basis === "gold" ? 85 : 595);
+    if (nisab <= 0) {
+        result.textContent = "Enter a current metal price or a local nisab amount first.";
+        return;
+    }
+    const netSavings = Math.max(0, savings - debts);
+    const zakatDue = hawlComplete && netSavings >= nisab ? Math.round(netSavings * 0.025) : 0;
+    if (!hawlComplete) {
+        result.textContent = "Estimated qualifying savings: " + money(netSavings) +
+            ". The hawl is not marked complete, so Zakat is not calculated as due yet. Nisab: " + money(nisab) + ".";
+    } else if (netSavings < nisab) {
+        result.textContent = "Zakat is not estimated as due: qualifying savings are " + money(netSavings) +
+            ", below the nisab of " + money(nisab) + ".";
+    } else {
+        result.textContent = "Estimated Zakat due: " + money(zakatDue) +
+            " (2.5% of " + money(netSavings) + "). Nisab: " + money(nisab) + ".";
+    }
+}
+
+function renderSavingsGoalsOverview() {
+    const container = document.getElementById("savingsGoalsOverview");
+    if (!container) {
+        return;
+    }
+    const goals = loadSavingsGoals();
+    container.innerHTML = goals.length ? goals.map(goal => {
+        const target = Math.max(1, Number(goal.target) || 1);
+        const saved = Math.min(target, Math.max(0, Number(goal.saved) || 0));
+        const percent = Math.min(100, Math.round(saved / target * 100));
+        const monthly = Math.max(0, Number(goal.monthly) || 0);
+        const etaMonths = monthly > 0 && saved < target ? Math.ceil((target - saved) / monthly) : 0;
+        const eta = etaMonths > 0
+            ? new Date(new Date().getFullYear(), new Date().getMonth() + etaMonths, 1)
+            : null;
+        const etaLabel = saved >= target ? "Complete" : eta
+            ? eta.toLocaleDateString("en-US", { month: "short", year: "numeric" })
+            : "Set a monthly pace";
+        return '<div class="savings-goal-summary"><div class="goal-heading"><strong>' +
+            escapeHtml(goal.name) + '</strong><span>' + percent + '%</span></div>' +
+            '<div class="goal-track"><div class="goal-progress" style="width:' + percent + '%"></div></div>' +
+            '<div class="savings-goal-summary-meta"><span>' + money(saved) + ' of ' + money(target) +
+            '</span><span>Target: ' + escapeHtml(etaLabel) + '</span></div></div>';
+    }).join("") : '<div class="empty">No goals yet. Add one to start tracking a future purchase or project.</div>';
 }
 
 /* =========================================================
@@ -5593,6 +6238,49 @@ function calendarDateLabel(date) {
 
 }
 
+function transactionTimestamp(transaction) {
+    const createdAt = Date.parse(String(transaction?.createdAt || ""));
+    if (Number.isFinite(createdAt)) {
+        return createdAt;
+    }
+    const numericId = Number(transaction?.id);
+    if (Number.isFinite(numericId) && numericId > 1000000000000) {
+        return numericId;
+    }
+    const date = Date.parse(String(transaction?.date || "") + "T12:00:00");
+    return Number.isFinite(date) ? date : 0;
+}
+
+function transactionDateTimeLabel(transaction) {
+    const timestamp = transactionTimestamp(transaction);
+    if (!timestamp) {
+        return calendarDateLabel(transaction?.date);
+    }
+    const date = new Date(timestamp);
+    const hasExactTime = Boolean(transaction?.createdAt) ||
+        (Number.isFinite(Number(transaction?.id)) && Number(transaction.id) > 1000000000000);
+    const locale = "en-US";
+    return date.toLocaleDateString(locale, hasExactTime
+        ? { month: "short", day: "numeric", year: "numeric" }
+        : { month: "short", day: "numeric", year: "numeric" }) +
+        (hasExactTime ? " at " + date.toLocaleTimeString(locale, {
+            hour: "numeric", minute: "2-digit"
+        }) : "");
+}
+
+function transactionTypeLabel(transaction) {
+    if (transaction?.type === "income") {
+        return "Income";
+    }
+    if (isSpendingTransaction(transaction)) {
+        return "Spending";
+    }
+    if (transaction?.type === "internal_transfer") {
+        return "Transfer";
+    }
+    return "Activity";
+}
+
 
 function calendarTransactionHtml(transaction) {
 
@@ -5601,6 +6289,9 @@ function calendarTransactionHtml(transaction) {
     let detail = "";
     let amountClass = "";
     let amountPrefix = "";
+    const canEdit = transaction?.type === "expense" &&
+        !transaction.billId && transaction.transferKind !== "balance_correction" &&
+        transaction.id != null;
 
     if (transaction.transferKind === "balance_correction") {
 
@@ -5625,11 +6316,15 @@ function calendarTransactionHtml(transaction) {
     } else if (isSpendingTransaction(transaction)) {
 
         icon = "−";
-        title = transaction.description || "Expense";
+        title = transaction.billId
+            ? "Bill payment"
+            : transaction.description || "Expense";
         detail =
-            (CATEGORY_NAMES[transaction.category] || "Other") +
+            (transaction.billId ? (transaction.description || "Bill") :
+                (CATEGORY_NAMES[transaction.category] || "Other")) +
             " · " +
             (transaction.bank || transaction.from || "Bank account");
+        amountClass = "negative";
         amountPrefix = "−";
 
     } else if (transaction.type === "internal_transfer") {
@@ -5646,6 +6341,7 @@ function calendarTransactionHtml(transaction) {
             (transaction.from || "Bank") +
             " → " +
             (transaction.to || "Bank");
+        amountClass = "transfer";
 
     } else if (transaction.type === "expense") {
 
@@ -5655,6 +6351,7 @@ function calendarTransactionHtml(transaction) {
             (CATEGORY_NAMES[transaction.category] || "Other") +
             " · " +
             (transaction.bank || "Bank account");
+        amountClass = "negative";
         amountPrefix = "−";
 
     }
@@ -5670,10 +6367,14 @@ function calendarTransactionHtml(transaction) {
                     ${escapeHtml(title)}
                 </div>
                 <div class="calendar-activity-meta">
-                    ${calendarDateLabel(transaction.date)} ·
+                    ${transactionDateTimeLabel(transaction)} ·
                     ${escapeHtml(detail)}
                 </div>
+                ${canEdit ? '<button type="button" class="calendar-edit-expense" data-expense-id="' +
+                    escapeHtml(transaction.id) + '">Edit expense</button>' : ""}
             </div>
+
+            <span class="calendar-activity-kind ${amountClass}">${transactionTypeLabel(transaction)}</span>
 
             <div class="calendar-activity-amount ${amountClass}">
                 ${amountPrefix}${money(transaction.amount)}
@@ -5682,6 +6383,13 @@ function calendarTransactionHtml(transaction) {
     `;
 
 }
+
+document.addEventListener("click", event => {
+    const button = event.target.closest(".calendar-edit-expense");
+    if (button) {
+        editExpense(button.dataset.expenseId);
+    }
+});
 
 
 function isAssignmentCategory(category) {
@@ -5814,7 +6522,7 @@ function renderTransactionHistory() {
             transaction.from, transaction.to, transaction.type
         ].join(" ").toLowerCase().indexOf(search) !== -1;
     }).sort((first, second) =>
-        String(second.date || "").localeCompare(String(first.date || "")));
+        transactionTimestamp(second) - transactionTimestamp(first));
     container.innerHTML = transactions.length
         ? transactions.map(calendarTransactionHtml).join("")
         : '<div class="calendar-empty">No matching transactions.</div>';
@@ -5835,7 +6543,51 @@ function prepareCanvas(canvas) {
     return { context: context, width: width, height: height };
 }
 
+function getTrendBaseline(monthsBack) {
+    const totals = {};
+    let month = monthKey();
+    for (let index = 0; index < monthsBack; index += 1) {
+        month = previousMonthKey(month);
+        const spend = getCategorySpendTotalsForMonth(month);
+        Object.keys(DEFAULT_CATEGORIES).forEach(category => {
+            totals[category] = (totals[category] || 0) + Number(spend[category] || 0);
+        });
+    }
+    Object.keys(totals).forEach(category => {
+        totals[category] = totals[category] / monthsBack;
+    });
+    return totals;
+}
+
+function renderTrendSummary(currentSpend, baseline, monthsBack) {
+    const summary = document.getElementById("trendSummary");
+    if (!summary) {
+        return;
+    }
+    const currentTotal = Object.values(currentSpend).reduce((sum, value) => sum + Number(value || 0), 0);
+    const baselineTotal = Object.values(baseline).reduce((sum, value) => sum + Number(value || 0), 0);
+    if (!currentTotal && !baselineTotal) {
+        summary.textContent = "Add spending to see a comparison with your recent average.";
+        return;
+    }
+    const difference = currentTotal - baselineTotal;
+    const percent = baselineTotal > 0 ? Math.round(Math.abs(difference) / baselineTotal * 100) : 0;
+    summary.textContent = difference === 0
+        ? "Spending is in line with your recent average."
+        : difference > 0
+            ? "You are spending " + percent + "% more than your previous " + monthsBack + "-month average."
+            : "You are spending " + percent + "% less than your previous " + monthsBack + "-month average.";
+}
+
+    function chartColors() {
+        const dark = document.documentElement.classList.contains("theme-dark");
+        return dark
+            ? { ink: "#f2f2f7", muted: "#a9a9b2", grid: "#3a3c43", income: "#6fe3a3", expense: "#f0918a", baseline: "#7f9087", planned: "#315640" }
+            : { ink: "#123d2f", muted: "#64756c", grid: "#dbe9df", income: "#16b866", expense: "#d66a5c", baseline: "#9db4a7", planned: "#dff2e5" };
+    }
+
 function drawCharts() {
+        const colors = chartColors();
     const flow = prepareCanvas(document.getElementById("cashFlowChart"));
     const assignment = prepareCanvas(document.getElementById("assignmentChart"));
     const trend = prepareCanvas(document.getElementById("trendChart"));
@@ -5857,10 +6609,11 @@ function drawCharts() {
         const max = Math.max(1, ...labels.map(day =>
             Math.max(days[day].income, days[day].expense)));
         const chart = flow;
-        const left = 34, bottom = 28, top = 18;
+        const compact = chart.width < 380;
+        const left = 34, bottom = 28, top = compact ? 42 : 18;
         const usableWidth = chart.width - left - 10;
         const usableHeight = chart.height - top - bottom;
-        chart.context.strokeStyle = "#dbe9df";
+        chart.context.strokeStyle = colors.grid;
         chart.context.beginPath();
         chart.context.moveTo(left, top);
         chart.context.lineTo(left, chart.height - bottom);
@@ -5871,28 +6624,31 @@ function drawCharts() {
             const x = left + (index + 0.5) * (usableWidth / Math.max(1, labels.length));
             const incomeHeight = days[day].income / max * usableHeight;
             const expenseHeight = days[day].expense / max * usableHeight;
-            chart.context.fillStyle = "#16b866";
+            chart.context.fillStyle = colors.income;
             chart.context.fillRect(x - barWidth - 1, chart.height - bottom - incomeHeight,
                 barWidth, incomeHeight);
-            chart.context.fillStyle = "#d66a5c";
+            chart.context.fillStyle = colors.expense;
             chart.context.fillRect(x + 1, chart.height - bottom - expenseHeight,
                 barWidth, expenseHeight);
-            chart.context.fillStyle = "#64756c";
+            chart.context.fillStyle = colors.muted;
             chart.context.font = "10px sans-serif";
             chart.context.fillText(day, x - 5, chart.height - 10);
         });
-        chart.context.fillStyle = "#123d2f";
+        chart.context.fillStyle = colors.ink;
         chart.context.font = "700 12px sans-serif";
         chart.context.fillText("Income / spending by day", 10, 13);
-        chart.context.fillStyle = "#16b866";
-        chart.context.fillRect(chart.width - 128, 7, 9, 9);
-        chart.context.fillStyle = "#123d2f";
+        const legendY = compact ? 28 : 7;
+        const legendX = compact ? 10 : chart.width - 128;
+        chart.context.fillStyle = colors.income;
+        chart.context.fillRect(legendX, legendY, 9, 9);
+        chart.context.fillStyle = colors.ink;
         chart.context.font = "10px sans-serif";
-        chart.context.fillText("Income", chart.width - 115, 15);
-        chart.context.fillStyle = "#d66a5c";
-        chart.context.fillRect(chart.width - 67, 7, 9, 9);
-        chart.context.fillStyle = "#123d2f";
-        chart.context.fillText("Spent", chart.width - 53, 15);
+        chart.context.fillText("Income", legendX + 13, legendY + 8);
+        chart.context.fillStyle = colors.expense;
+        const spentLegendX = compact ? 75 : chart.width - 67;
+        chart.context.fillRect(spentLegendX, legendY, 9, 9);
+        chart.context.fillStyle = colors.ink;
+        chart.context.fillText("Spent", spentLegendX + 13, legendY + 8);
     }
     if (assignment) {
         const data = loadMonthData() || {};
@@ -5902,7 +6658,7 @@ function drawCharts() {
         const max = Math.max(1, ...categories.map(category => Math.max(
             Number(data.assignments?.[category] ?? DEFAULT_CATEGORIES[category]) || 0,
             Number(spend[category] || 0))));
-        chart.context.fillStyle = "#123d2f";
+        chart.context.fillStyle = colors.ink;
         chart.context.font = "700 12px sans-serif";
         chart.context.fillText("Assignments: planned / spent", 10, 14);
         categories.forEach((category, index) => {
@@ -5910,47 +6666,52 @@ function drawCharts() {
             const planned = Number(data.assignments?.[category] ?? DEFAULT_CATEGORIES[category]) || 0;
             const spent = Number(spend[category] || 0);
             const width = chart.width - 92;
-            chart.context.fillStyle = "#dff2e5";
+            chart.context.fillStyle = colors.planned;
             chart.context.fillRect(30, y, width * planned / max, 8);
-            chart.context.fillStyle = "#16b866";
+            chart.context.fillStyle = colors.income;
             chart.context.fillRect(30, y + 10, width * spent / max, 8);
-            chart.context.fillStyle = "#123d2f";
+            chart.context.fillStyle = colors.ink;
             chart.context.font = "700 11px sans-serif";
             chart.context.fillText(category, 10, y + 14);
         });
     }
     if (trend) {
         const currentSpend = getCategorySpendTotals();
-        const prevMonth = previousMonthKey(monthKey());
-        const prevSpend = getCategorySpendTotalsForMonth(prevMonth);
+        const monthsBack = Number(document.getElementById("trendRange")?.value) || 1;
+        const baselineSpend = getTrendBaseline(monthsBack);
+        renderTrendSummary(currentSpend, baselineSpend, monthsBack);
         const categories = Object.keys(DEFAULT_CATEGORIES)
             .filter(category => !["M", "S", "$"].includes(category));
         const chart = trend;
         const max = Math.max(1, ...categories.map(category => Math.max(
             Number(currentSpend[category] || 0),
-            Number(prevSpend[category] || 0))));
-        chart.context.fillStyle = "#123d2f";
+            Number(baselineSpend[category] || 0))));
+        const compact = chart.width < 380;
+        chart.context.fillStyle = colors.ink;
         chart.context.font = "700 12px sans-serif";
         chart.context.fillText("Spending trend by category", 10, 14);
-        chart.context.fillStyle = "#9db4a7";
-        chart.context.fillRect(chart.width - 128, 7, 9, 9);
-        chart.context.fillStyle = "#123d2f";
+        chart.context.fillStyle = colors.baseline;
+        const legendY = compact ? 28 : 7;
+        const legendX = compact ? 10 : chart.width - 128;
+        chart.context.fillRect(legendX, legendY, 9, 9);
+        chart.context.fillStyle = colors.ink;
         chart.context.font = "10px sans-serif";
-        chart.context.fillText("Last month", chart.width - 115, 15);
-        chart.context.fillStyle = "#16b866";
-        chart.context.fillRect(chart.width - 47, 7, 9, 9);
+        chart.context.fillText(monthsBack === 1 ? "Last month" : "Recent average", legendX + 13, legendY + 8);
+        chart.context.fillStyle = colors.income;
+        const currentLegendX = compact ? 112 : chart.width - 47;
+        chart.context.fillRect(currentLegendX, legendY, 9, 9);
         chart.context.font = "10px sans-serif";
-        chart.context.fillText("This month", chart.width - 34, 15);
+        chart.context.fillText("This month", currentLegendX + 13, legendY + 8);
         categories.forEach((category, index) => {
-            const y = 28 + index * 30;
-            const prev = Number(prevSpend[category] || 0);
+            const y = (compact ? 48 : 28) + index * 30;
+            const prev = Number(baselineSpend[category] || 0);
             const current = Number(currentSpend[category] || 0);
             const width = chart.width - 92;
-            chart.context.fillStyle = "#9db4a7";
+            chart.context.fillStyle = colors.baseline;
             chart.context.fillRect(30, y, width * prev / max, 9);
-            chart.context.fillStyle = "#16b866";
+            chart.context.fillStyle = colors.income;
             chart.context.fillRect(30, y + 12, width * current / max, 9);
-            chart.context.fillStyle = "#123d2f";
+            chart.context.fillStyle = colors.ink;
             chart.context.font = "700 11px sans-serif";
             chart.context.fillText(category, 10, y + 15);
             chart.context.font = "10px sans-serif";
@@ -5964,6 +6725,7 @@ function drawCharts() {
 
 
 function renderYearlyOverview() {
+    const colors = chartColors();
     const listElement = document.getElementById("yearlyOverviewList");
     const yearElement = document.getElementById("yearlyOverviewYear");
     const chart = prepareCanvas(document.getElementById("yearlyChart"));
@@ -6025,7 +6787,7 @@ function renderYearlyOverview() {
         const left = 34, bottom = 24, top = 18;
         const usableWidth = chart.width - left - 10;
         const usableHeight = chart.height - top - bottom;
-        chart.context.strokeStyle = "#dbe9df";
+        chart.context.strokeStyle = colors.grid;
         chart.context.beginPath();
         chart.context.moveTo(left, top);
         chart.context.lineTo(left, chart.height - bottom);
@@ -6036,27 +6798,27 @@ function renderYearlyOverview() {
             const x = left + (index + 0.5) * (usableWidth / 12);
             const incomeHeight = item.income / max * usableHeight;
             const spentHeight = item.spent / max * usableHeight;
-            chart.context.fillStyle = "#16b866";
+            chart.context.fillStyle = colors.income;
             chart.context.fillRect(x - barWidth - 1, chart.height - bottom - incomeHeight,
                 barWidth, incomeHeight);
-            chart.context.fillStyle = "#d66a5c";
+            chart.context.fillStyle = colors.expense;
             chart.context.fillRect(x + 1, chart.height - bottom - spentHeight,
                 barWidth, spentHeight);
-            chart.context.fillStyle = "#64756c";
+            chart.context.fillStyle = colors.muted;
             chart.context.font = "10px sans-serif";
             chart.context.fillText(monthLabels[item.month - 1], x - 9, chart.height - 8);
         });
-        chart.context.fillStyle = "#123d2f";
+        chart.context.fillStyle = colors.ink;
         chart.context.font = "700 12px sans-serif";
         chart.context.fillText("Income / spending by month", 10, 13);
-        chart.context.fillStyle = "#16b866";
+        chart.context.fillStyle = colors.income;
         chart.context.fillRect(chart.width - 128, 7, 9, 9);
-        chart.context.fillStyle = "#123d2f";
+        chart.context.fillStyle = colors.ink;
         chart.context.font = "10px sans-serif";
         chart.context.fillText("Income", chart.width - 115, 15);
-        chart.context.fillStyle = "#d66a5c";
+        chart.context.fillStyle = colors.expense;
         chart.context.fillRect(chart.width - 67, 7, 9, 9);
-        chart.context.fillStyle = "#123d2f";
+        chart.context.fillStyle = colors.ink;
         chart.context.fillText("Spent", chart.width - 53, 15);
     }
 }
@@ -6429,21 +7191,8 @@ function renderCalendar() {
             .filter(transaction =>
                 transaction.month === monthKey()
             )
-            .sort((first, second) => {
-
-                const byDate =
-                    String(second.date || "").localeCompare(
-                        String(first.date || "")
-                    );
-
-                if (byDate !== 0) {
-                    return byDate;
-                }
-
-                return Number(second.id || 0) -
-                    Number(first.id || 0);
-
-            });
+            .sort((first, second) =>
+                transactionTimestamp(second) - transactionTimestamp(first));
 
     const income =
         allTransactions
@@ -6743,20 +7492,46 @@ function updateSummary() {
     const dashboardDaysLeft = document.getElementById("dashboardDaysLeft");
     const dashboardSafeToSpend = document.getElementById("dashboardSafeToSpend");
     const dashboardSafeToSpendHint = document.getElementById("dashboardSafeToSpendHint");
+    const dashboardProjectedEndBalance = document.getElementById("dashboardProjectedEndBalance");
+    const dashboardProjectedEndHint = document.getElementById("dashboardProjectedEndHint");
+    const spendableCategoryElements = {
+        P: document.getElementById("dashboardSpendableP"),
+        C: document.getElementById("dashboardSpendableC"),
+        T: document.getElementById("dashboardSpendableT")
+    };
+    const spendableCategoryNames = {
+        P: document.getElementById("dashboardSpendablePName"),
+        C: document.getElementById("dashboardSpendableCName"),
+        T: document.getElementById("dashboardSpendableTName")
+    };
+    const spendableCategoryUsed = {
+        P: document.getElementById("dashboardSpendablePUsed"),
+        C: document.getElementById("dashboardSpendableCUsed"),
+        T: document.getElementById("dashboardSpendableTUsed")
+    };
+    const spendableCategoryProgress = {
+        P: document.getElementById("dashboardSpendablePProgress"),
+        C: document.getElementById("dashboardSpendableCProgress"),
+        T: document.getElementById("dashboardSpendableTProgress")
+    };
 
     if (dashboardBalance) {
-        dashboardBalance.textContent = money(remaining);
-        dashboardBalance.classList.toggle("negative", remaining < 0);
-        dashboardBalance.classList.toggle("positive", remaining >= 0);
+        dashboardBalance.textContent = income > 0 ? money(remaining) : "—";
+        dashboardBalance.classList.toggle("negative", income > 0 && remaining < 0);
+        dashboardBalance.classList.toggle("positive", income > 0 && remaining >= 0);
     }
     if (dashboardIncome) {
         dashboardIncome.textContent = money(income);
+        dashboardIncome.classList.add("positive");
+        dashboardIncome.classList.remove("negative");
     }
     if (dashboardBudget) {
-        dashboardBudget.textContent = money(budget);
+        dashboardBudget.textContent = income > 0 ? money(budget) : "Not set";
     }
     if (dashboardSpent) {
         dashboardSpent.textContent = money(spent);
+        dashboardSpent.classList.add("negative");
+        dashboardSpent.classList.remove("positive");
     }
     if (dashboardTotalBalance) {
         dashboardTotalBalance.textContent = money(totalBalance);
@@ -6775,24 +7550,87 @@ function updateSummary() {
                 : "Your month in one clear view";
         }
         if (dashboardSafeToSpend) {
-            const budgetRemaining = budget - spent;
+            const fundedAmounts = {};
+            DAILY_SPEND_CATEGORIES.forEach(category => {
+                const fundingTransfer = (data?.transactions || []).find(transaction =>
+                    transaction.type === "internal_transfer" &&
+                    transaction.category === category &&
+                    transaction.transferKind !== "assignment_payment" &&
+                    transaction.to === DESTINATIONS[category] &&
+                    transaction.from === data?.mainBank);
+                fundedAmounts[category] = hasAssignmentFunding(data, category)
+                    ? Number(fundingTransfer?.amount || 0) : 0;
+            });
+            const categorySpendTotals = getCategorySpendTotalsForMonth(monthKey());
+            const spendableBudget = DAILY_SPEND_CATEGORIES.reduce((sum, category) =>
+                sum + fundedAmounts[category], 0);
+            const spendableSpent = DAILY_SPEND_CATEGORIES.reduce((sum, category) =>
+                sum + Number(categorySpendTotals[category] || 0), 0);
+            const spendableRemaining = spendableBudget - spendableSpent;
+            const spendableByCategory = {};
+            DAILY_SPEND_CATEGORIES.forEach(category => {
+                const categorySpent = Number(categorySpendTotals[category] || 0);
+                spendableByCategory[category] = fundedAmounts[category] - categorySpent;
+                if (spendableCategoryElements[category]) {
+                    spendableCategoryElements[category].textContent = money(
+                        Math.max(0, spendableByCategory[category]));
+                }
+                if (spendableCategoryNames[category]) {
+                    spendableCategoryNames[category].textContent = categoryStyle(category).icon + " · " + CATEGORY_NAMES[category];
+                    spendableCategoryNames[category].style.color = categoryStyle(category).color;
+                }
+                if (spendableCategoryUsed[category]) {
+                    spendableCategoryUsed[category].textContent =
+                        "Used this month: " + money(categorySpent);
+                }
+                if (spendableCategoryProgress[category]) {
+                    const fundedAmount = fundedAmounts[category];
+                    const usedRatio = fundedAmount > 0
+                        ? Math.min(100, Math.max(0, categorySpent / fundedAmount * 100)) : 0;
+                    spendableCategoryProgress[category].style.width = usedRatio + "%";
+                    spendableCategoryProgress[category].setAttribute("aria-valuenow", String(Math.round(usedRatio)));
+                }
+            });
             if (income <= 0) {
                 dashboardSafeToSpend.textContent = money(0);
                 dashboardSafeToSpend.classList.remove("negative");
                 if (dashboardSafeToSpendHint) {
                     dashboardSafeToSpendHint.textContent =
-                        "Add your income to see a daily guide.";
+                        "Confirm your income, then fund P, C or T to activate the guide.";
                 }
             } else {
-                const perDay = budgetRemaining / daysLeft;
+                const perDay = spendableRemaining / daysLeft;
                 dashboardSafeToSpend.textContent = money(Math.max(0, perDay));
-                dashboardSafeToSpend.classList.toggle("negative", perDay < 0);
+                dashboardSafeToSpend.classList.toggle("negative", spendableRemaining < 0);
                 if (dashboardSafeToSpendHint) {
-                    dashboardSafeToSpendHint.textContent = perDay < 0
-                        ? "You've gone over budget. Consider reviewing your plan."
-                        : money(budgetRemaining) + " left ÷ " + daysLeft +
+                    const fundedCount = DAILY_SPEND_CATEGORIES.filter(category =>
+                        fundedAmounts[category] > 0).length;
+                    dashboardSafeToSpendHint.textContent = fundedCount === 0
+                        ? "Fund P, C or T to see your actual spendable balance."
+                        : spendableRemaining < 0
+                        ? "P, C & T are over by " + money(Math.abs(spendableRemaining)) + ". Review today's spending."
+                        : money(spendableRemaining) + " left across P, C & T ÷ " + daysLeft +
                           " day" + (daysLeft === 1 ? "" : "s") + " remaining";
                 }
+            }
+        }
+    }
+
+    if (dashboardProjectedEndBalance) {
+        if (income <= 0) {
+            dashboardProjectedEndBalance.textContent = "0 MRU";
+            dashboardProjectedEndBalance.classList.remove("negative");
+            if (dashboardProjectedEndHint) {
+                dashboardProjectedEndHint.textContent = "Confirm income to estimate what remains at month-end.";
+            }
+        } else {
+            const projectedEnd = income - spent;
+            dashboardProjectedEndBalance.textContent = money(projectedEnd);
+            dashboardProjectedEndBalance.classList.toggle("negative", projectedEnd < 0);
+            if (dashboardProjectedEndHint) {
+                dashboardProjectedEndHint.textContent = projectedEnd < 0
+                    ? "You are already above your planned month-end balance. Reduce flexible spending to get back on track."
+                    : "Projected cash left after your current spending pace for this month.";
             }
         }
     }
@@ -6801,15 +7639,17 @@ function updateSummary() {
         dashboardStatus.classList.remove("neutral", "good", "warning");
         if (income <= 0) {
             dashboardStatus.textContent =
-                "Add your income to see your monthly status.";
+                "Add your income to see your monthly status and future spending guide.";
             dashboardStatus.classList.add("neutral");
         } else if (incomeWarning || plannedWarning) {
+            const overBy = Math.max(0, spent - budget);
             dashboardStatus.textContent =
-                "Spending is getting high. Review your remaining budget.";
+                "Spending is getting high. You are " + money(overBy) + " above target this month. Pull back on flexible spending.";
             dashboardStatus.classList.add("warning");
         } else {
+            const projectedLeft = income > 0 ? Math.max(0, income - spent) : 0;
             dashboardStatus.textContent =
-                "On track: " + money(spent) + " spent this month.";
+                "On track: " + money(spent) + " spent so far. About " + money(projectedLeft) + " remains before month-end.";
             dashboardStatus.classList.add("good");
         }
     }
@@ -7316,6 +8156,55 @@ function renderInsights() {
     ).join("");
 }
 
+function renderHomeNextAction() {
+    const card = document.getElementById("homeNextAction");
+    const title = document.getElementById("homeNextActionTitle");
+    const text = document.getElementById("homeNextActionText");
+    const button = document.getElementById("homeNextActionButton");
+    if (!card || !title || !text || !button) {
+        return;
+    }
+    const data = loadMonthData() || {};
+    const pendingAssignments = Object.keys(DEFAULT_CATEGORIES).filter(category =>
+        !hasAssignmentFunding(data, category));
+    const incomeConfirmed = Boolean(data.incomeConfirmed);
+    let action = {
+        title: "Confirm your income",
+        text: "Start your month by confirming where your income arrived.",
+        label: "Set up income",
+        page: "homePage"
+    };
+    if (incomeConfirmed && pendingAssignments.length) {
+        action = {
+            title: "Fund your monthly plan",
+            text: pendingAssignments.length + " assignment" +
+                (pendingAssignments.length === 1 ? " is" : "s are") +
+                " waiting for funding.",
+            label: "Review assignments",
+            page: "assignmentsPage"
+        };
+    } else if (incomeConfirmed) {
+        action = {
+            title: "Keep your month current",
+            text: "Record today's spending so your safe-to-spend guide stays accurate.",
+            label: "Record spending",
+            page: "spendingPage"
+        };
+    }
+    title.textContent = action.title;
+    text.textContent = action.text;
+    button.textContent = action.label;
+    button.onclick = () => {
+        showPage(action.page);
+        if (action.page === "homePage") {
+            const incomeInput = document.getElementById("incomeInput");
+            if (incomeInput) {
+                incomeInput.focus();
+            }
+        }
+    };
+}
+
 /* =========================================================
    UPDATE EVERYTHING
 ========================================================= */
@@ -7335,6 +8224,7 @@ function updateAll() {
     updateSummary();
     renderMonthWorkflow();
     renderInsights();
+    renderHomeNextAction();
     renderAssignmentReminder();
 
     const dashboardDetails = document.querySelector(".dashboard-details");
@@ -7767,6 +8657,11 @@ document
         exportAppData
     );
 
+const exportEncryptedDataButton = document.getElementById("exportEncryptedDataButton");
+if (exportEncryptedDataButton) {
+    exportEncryptedDataButton.addEventListener("click", exportEncryptedAppData);
+}
+
 document
     .getElementById("importDataInput")
     .addEventListener(
@@ -7793,6 +8688,29 @@ if (savingsFundButton) {
         renderSavingsPage();
     });
 }
+
+const zakatBasisSelect = document.getElementById("zakatNisabBasis");
+if (zakatBasisSelect) {
+    restoreZakatPreferences();
+    zakatBasisSelect.addEventListener("change", () => {
+        updateZakatNisabFields();
+        calculateZakat();
+    });
+    updateZakatNisabFields();
+}
+
+const calculateZakatButton = document.getElementById("calculateZakatButton");
+if (calculateZakatButton) {
+    calculateZakatButton.addEventListener("click", calculateZakat);
+}
+
+["zakatSavingsAmount", "zakatImmediateDebts", "zakatMetalPrice", "zakatCustomNisab", "zakatHawlComplete"]
+    .forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.addEventListener(input.type === "checkbox" ? "change" : "input", calculateZakat);
+        }
+    });
 
 const saveSavingsGoalButton = document.getElementById("saveSavingsGoalButton");
 if (saveSavingsGoalButton) {
@@ -7870,6 +8788,13 @@ document
     });
 
 document
+    .getElementById("actionSoundsToggle")
+    .addEventListener("change", event => {
+        setNotificationPref("actionSounds", event.target.checked);
+        setMessage(event.target.checked ? "Action sounds enabled." : "Action sounds disabled.");
+    });
+
+document
     .getElementById("eraseAllDataButton")
     .addEventListener("click", eraseAllAppData);
 
@@ -7902,6 +8827,10 @@ document
 document
     .getElementById("addBillButton")
     .addEventListener("click", addBill);
+
+document
+    .getElementById("cancelBillEditButton")
+    .addEventListener("click", cancelBillEdit);
 
 ["billFilterBank", "billFilterStatus", "billSortOrder"].forEach(id => {
     const element = document.getElementById(id);
@@ -7953,6 +8882,11 @@ document
             drawCharts();
         }
     });
+
+const trendRange = document.getElementById("trendRange");
+if (trendRange) {
+    trendRange.addEventListener("change", drawCharts);
+}
 
 const yearlyOverviewDetails = document.querySelector(".yearly-overview-details");
 if (yearlyOverviewDetails) {
@@ -8009,3 +8943,19 @@ document.getElementById("repairAuditButton").addEventListener("click", () => {
 });
 document.getElementById("confirmRestoreButton").addEventListener("click", confirmRestore);
 document.getElementById("cancelRestoreButton").addEventListener("click", cancelRestore);
+
+const appSplash = document.getElementById("appSplash");
+if (appSplash) {
+    window.setTimeout(() => appSplash.classList.add("is-hidden"), 850);
+}
+
+document.addEventListener("click", event => {
+    const button = event.target.closest("button, .settings-file-button");
+    if (!button || button.disabled ||
+        (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) {
+        return;
+    }
+    button.classList.remove("press-feedback");
+    void button.offsetWidth;
+    button.classList.add("press-feedback");
+});

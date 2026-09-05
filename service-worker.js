@@ -1,4 +1,4 @@
-const CACHE_NAME = "itoumrou-pwa-v2";
+const CACHE_NAME = "itoumrou-pwa-v15";
 const APP_SHELL = [
   "./",
   "./index.html",

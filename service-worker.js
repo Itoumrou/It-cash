@@ -1,4 +1,6 @@
-const CACHE_NAME = "itoumrou-pwa-v15";
+importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js");
+
+const CACHE_NAME = "itoumrou-pwa-v16";
 const APP_SHELL = [
   "./",
   "./index.html",
